@@ -1,5 +1,19 @@
-import { Product, ProductTier } from '../types';
-import { Order, User } from './storageService';
+import { AdminSettings, Product, ProductTier } from '../types';
+import {
+  BlacklistEntry,
+  Category,
+  Coupon,
+  DomainRecord,
+  Feedback,
+  Invoice,
+  Order,
+  PaymentMethodConfig,
+  ProductGroup,
+  SecurityLog,
+  TeamMember,
+  Ticket,
+  User,
+} from './storageService';
 
 const STORE_API_BASE_URL = ((import.meta.env.VITE_STORE_API_URL as string | undefined) || '').trim().replace(/\/$/, '');
 const STORE_API_PREFIX = ((import.meta.env.VITE_STORE_API_PREFIX as string | undefined) || '/shop').trim() || '/shop';
@@ -106,6 +120,66 @@ export interface AdminSummary {
   topProducts: AdminSummaryTopProduct[];
 }
 
+export type ShopStateKey =
+  | 'settings'
+  | 'users'
+  | 'logs'
+  | 'categories'
+  | 'groups'
+  | 'coupons'
+  | 'invoices'
+  | 'tickets'
+  | 'feedbacks'
+  | 'domains'
+  | 'team'
+  | 'blacklist'
+  | 'payment_methods';
+
+export interface ShopStateMap {
+  settings: AdminSettings;
+  users: User[];
+  logs: SecurityLog[];
+  categories: Category[];
+  groups: ProductGroup[];
+  coupons: Coupon[];
+  invoices: Invoice[];
+  tickets: Ticket[];
+  feedbacks: Feedback[];
+  domains: DomainRecord[];
+  team: TeamMember[];
+  blacklist: BlacklistEntry[];
+  payment_methods: PaymentMethodConfig[];
+}
+
+const defaultStateValue = <K extends ShopStateKey>(stateKey: K): ShopStateMap[K] => {
+  const defaults: ShopStateMap = {
+    settings: {
+      storeName: 'Roblox Keys',
+      currency: 'USD',
+      paypalEmail: '',
+      stripeKey: '',
+      cryptoAddress: '',
+    },
+    users: [],
+    logs: [],
+    categories: [],
+    groups: [],
+    coupons: [],
+    invoices: [],
+    tickets: [],
+    feedbacks: [],
+    domains: [],
+    team: [],
+    blacklist: [],
+    payment_methods: [
+      { id: 'pm-card', name: 'Card', enabled: true, instructions: 'Stripe/Card checkout' },
+      { id: 'pm-paypal', name: 'PayPal', enabled: true, instructions: 'PayPal email checkout' },
+      { id: 'pm-crypto', name: 'Crypto', enabled: true, instructions: 'Manual wallet transfer' },
+    ],
+  };
+  return defaults[stateKey];
+};
+
 export const REQUIRE_API =
   String(import.meta.env.VITE_REQUIRE_API ?? 'true').trim().toLowerCase() !== 'false';
 
@@ -185,6 +259,59 @@ export const ShopApiService = {
       },
       topProducts: Array.isArray(payload.topProducts) ? payload.topProducts : [],
     };
+  },
+
+  async getState<K extends ShopStateKey>(stateKey: K): Promise<ShopStateMap[K]> {
+    const response = await withTimeout(resolvePath(`/state/${encodeURIComponent(stateKey)}`), {
+      method: 'GET',
+      headers: buildHeaders(),
+    });
+    if (!response.ok) throw new Error(`Get state failed (${response.status})`);
+    const payload = await response.json() as { state?: ShopStateMap[K] };
+    if (payload.state === undefined || payload.state === null) {
+      return defaultStateValue(stateKey);
+    }
+    return payload.state;
+  },
+
+  async setState<K extends ShopStateKey>(stateKey: K, state: ShopStateMap[K]): Promise<ShopStateMap[K]> {
+    const response = await withTimeout(resolvePath(`/state/${encodeURIComponent(stateKey)}`), {
+      method: 'PUT',
+      headers: buildHeaders(),
+      body: JSON.stringify({ state }),
+    });
+    if (!response.ok) throw new Error(`Set state failed (${response.status})`);
+    const payload = await response.json() as { state?: ShopStateMap[K] };
+    if (payload.state === undefined || payload.state === null) {
+      return state;
+    }
+    return payload.state;
+  },
+
+  async authLogin(email: string, password: string): Promise<User> {
+    const response = await withTimeout(resolvePath('/auth/login'), {
+      method: 'POST',
+      headers: buildHeaders(),
+      body: JSON.stringify({ email, password }),
+    });
+    const payload = await response.json().catch(() => ({})) as { ok?: boolean; message?: string; user?: User };
+    if (!response.ok || !payload.user) {
+      throw new Error(payload.message || `Login failed (${response.status})`);
+    }
+    return payload.user;
+  },
+
+  async authRegister(email: string, password: string): Promise<User> {
+    const response = await withTimeout(resolvePath('/auth/register'), {
+      method: 'POST',
+      headers: buildHeaders(),
+      body: JSON.stringify({ email, password }),
+    });
+    const payload = await response.json().catch(() => ({})) as { ok?: boolean; message?: string; user?: User };
+    if (!response.ok || !payload.user) {
+      throw new Error(payload.message || `Register failed (${response.status})`);
+    }
+    return payload.user;
   },
 
   async upsertProduct(product: Product): Promise<{ product?: Product; products?: Product[] }> {

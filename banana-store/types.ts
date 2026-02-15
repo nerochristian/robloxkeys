@@ -33,6 +33,8 @@ export interface Product {
   category?: string;
   group?: string;
   visibility?: 'public' | 'private' | 'hidden';
+  cardBadgeLabel?: string;
+  cardBadgeIcon?: 'grid' | 'key' | 'shield';
   hideStockCount?: boolean;
   showViewsCount?: boolean;
   showSalesCount?: boolean;

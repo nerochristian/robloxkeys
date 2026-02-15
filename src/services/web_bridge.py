@@ -34,6 +34,8 @@ class WebsiteBridgeServer:
         self.events_channel_id = self._env_int("WEBSITE_EVENTS_CHANNEL_ID")
         self.order_channel_id = self._env_int("WEBSITE_ORDER_CHANNEL_ID") or self.events_channel_id
         self.chat_channel_id = self._env_int("WEBSITE_CHAT_CHANNEL_ID") or self.events_channel_id
+        self.admin_email = (os.getenv("ADMIN_EMAIL") or "powerpoki7@gmail.com").strip().lower()
+        self.admin_password = (os.getenv("ADMIN_PASSWORD") or "Pokemon2020!").strip()
         self.db_url = (os.getenv("SUPABASE_DATABASE_URL") or os.getenv("DATABASE_URL") or "").strip()
         self.shop_storage_backend = (os.getenv("SHOP_STORAGE_BACKEND") or "auto").strip().lower()
         if self.shop_storage_backend not in {"auto", "supabase", "json"}:
@@ -53,6 +55,21 @@ class WebsiteBridgeServer:
         self.products_file = self.data_dir / "shop_products.json"
         self.orders_file = self.data_dir / "shop_orders.json"
         self.pending_payments_file = self.data_dir / "shop_pending_payments.json"
+        self.state_keys = (
+            "settings",
+            "users",
+            "logs",
+            "categories",
+            "groups",
+            "coupons",
+            "invoices",
+            "tickets",
+            "feedbacks",
+            "domains",
+            "team",
+            "blacklist",
+            "payment_methods",
+        )
         self.stripe_secret_key = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
         self.stripe_currency = (os.getenv("STRIPE_CURRENCY") or "usd").strip().lower() or "usd"
         self.paypal_checkout_url = (os.getenv("PAYPAL_CHECKOUT_URL") or "").strip()
@@ -82,8 +99,12 @@ class WebsiteBridgeServer:
         self.app.router.add_get("/shop/products", self.shop_products)
         self.app.router.add_get("/shop/invoices/{invoice_id}", self.shop_get_invoice)
         self.app.router.add_get("/shop/orders", self.shop_orders)
+        self.app.router.add_get("/shop/state/{state_key}", self.shop_get_state)
+        self.app.router.add_put("/shop/state/{state_key}", self.shop_set_state)
         self.app.router.add_get("/shop/payment-methods", self.shop_payment_methods)
         self.app.router.add_get("/shop/admin/summary", self.shop_admin_summary)
+        self.app.router.add_post("/shop/auth/login", self.shop_auth_login)
+        self.app.router.add_post("/shop/auth/register", self.shop_auth_register)
         self.app.router.add_post("/shop/products", self.shop_upsert_product)
         self.app.router.add_delete("/shop/products/{product_id}", self.shop_delete_product)
         self.app.router.add_get("/shop/inventory/{product_id}", self.shop_get_inventory)
@@ -277,6 +298,107 @@ class WebsiteBridgeServer:
         rows.sort(key=lambda row: str(row.get("createdAt") or ""), reverse=True)
         return web.json_response({"ok": True, "orders": rows})
 
+    async def shop_get_state(self, request: web.Request):
+        state_key = str(request.match_info.get("state_key", "")).strip().lower()
+        if not self._is_state_key_allowed(state_key):
+            return web.json_response({"ok": False, "message": "invalid state key"}, status=400)
+        state_value = await self._load_state(state_key)
+        if state_key == "users" and isinstance(state_value, list):
+            safe_users: list[dict[str, Any]] = []
+            for user in state_value:
+                if not isinstance(user, dict):
+                    continue
+                public_user = dict(user)
+                public_user.pop("password", None)
+                safe_users.append(public_user)
+            state_value = safe_users
+        return web.json_response({"ok": True, "state": state_value})
+
+    async def shop_set_state(self, request: web.Request):
+        state_key = str(request.match_info.get("state_key", "")).strip().lower()
+        if not self._is_state_key_allowed(state_key):
+            return web.json_response({"ok": False, "message": "invalid state key"}, status=400)
+        payload = await self._safe_json(request)
+        if payload is None:
+            return web.json_response({"ok": False, "message": "invalid json body"}, status=400)
+        if "state" not in payload:
+            return web.json_response({"ok": False, "message": "state payload is required"}, status=400)
+
+        expected = self._default_state_value(state_key)
+        state_value = payload.get("state")
+        if isinstance(expected, list) and not isinstance(state_value, list):
+            return web.json_response({"ok": False, "message": "state must be an array"}, status=400)
+        if isinstance(expected, dict) and not isinstance(state_value, dict):
+            return web.json_response({"ok": False, "message": "state must be an object"}, status=400)
+
+        # Keep admin access resilient even if users list is overwritten.
+        if state_key == "users" and isinstance(state_value, list):
+            users = [item for item in state_value if isinstance(item, dict)]
+            users = self._ensure_default_admin_user(users)
+            await self._save_state(state_key, users)
+            return web.json_response({"ok": True, "state": users})
+
+        await self._save_state(state_key, state_value)
+        return web.json_response({"ok": True, "state": state_value})
+
+    async def shop_auth_login(self, request: web.Request):
+        payload = await self._safe_json(request)
+        if payload is None:
+            return web.json_response({"ok": False, "message": "invalid json body"}, status=400)
+        email = str(payload.get("email", "")).strip().lower()
+        password = str(payload.get("password", "")).strip()
+        if not email or not password:
+            return web.json_response({"ok": False, "message": "email and password are required"}, status=400)
+
+        users = await self._load_state("users")
+        if not isinstance(users, list):
+            users = []
+        users = self._ensure_default_admin_user([item for item in users if isinstance(item, dict)])
+
+        for user in users:
+            if str(user.get("email", "")).strip().lower() != email:
+                continue
+            if str(user.get("password", "")).strip() != password:
+                continue
+            public_user = dict(user)
+            public_user.pop("password", None)
+            await self._append_security_log(f"User Authentication Successful: {email}", "SUCCESS")
+            return web.json_response({"ok": True, "user": public_user})
+
+        await self._append_security_log(f"Failed Login Attempt: {email}", "CRITICAL")
+        return web.json_response({"ok": False, "message": "invalid email or password"}, status=401)
+
+    async def shop_auth_register(self, request: web.Request):
+        payload = await self._safe_json(request)
+        if payload is None:
+            return web.json_response({"ok": False, "message": "invalid json body"}, status=400)
+        email = str(payload.get("email", "")).strip().lower()
+        password = str(payload.get("password", "")).strip()
+        if not email or not password:
+            return web.json_response({"ok": False, "message": "email and password are required"}, status=400)
+
+        users = await self._load_state("users")
+        if not isinstance(users, list):
+            users = []
+        users = self._ensure_default_admin_user([item for item in users if isinstance(item, dict)])
+        if any(str(item.get("email", "")).strip().lower() == email for item in users):
+            return web.json_response({"ok": False, "message": "user already exists"}, status=409)
+
+        user = {
+            "id": f"user-{int(datetime.now(timezone.utc).timestamp() * 1000)}",
+            "email": email,
+            "password": password,
+            "role": "user",
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+        }
+        users.append(user)
+        await self._save_state("users", users)
+        await self._append_security_log(f"New User Registered: {email}", "SUCCESS")
+
+        public_user = dict(user)
+        public_user.pop("password", None)
+        return web.json_response({"ok": True, "user": public_user})
+
     async def shop_payment_methods(self, request: web.Request):
         crypto_automated = bool(self.oxapay_merchant_api_key)
         crypto_enabled = crypto_automated or bool(self.crypto_checkout_url)
@@ -384,6 +506,29 @@ class WebsiteBridgeServer:
 
                 product_entry["units"] = int(product_entry.get("units", 0)) + quantity
                 product_entry["revenue"] = float(product_entry.get("revenue", 0.0)) + (item_price * quantity)
+
+        users_state = await self._load_state("users")
+        if isinstance(users_state, list):
+            for user in users_state:
+                if not isinstance(user, dict):
+                    continue
+                role = str(user.get("role") or "user").strip().lower()
+                if role == "admin":
+                    continue
+                user_email = str(user.get("email") or "").strip()
+                user_id = str(user.get("id") or user_email or "").strip()
+                if not user_id and not user_email:
+                    continue
+                customer_key = user_email.lower() or user_id
+                if customer_key in customer_map:
+                    continue
+                customer_map[customer_key] = {
+                    "id": user_id or customer_key,
+                    "email": user_email,
+                    "orders": 0,
+                    "totalSpent": 0.0,
+                    "createdAt": str(user.get("createdAt") or datetime.now(timezone.utc).isoformat()),
+                }
 
         orders.sort(key=lambda row: str(row.get("createdAt") or ""), reverse=True)
         customers = list(customer_map.values())
@@ -1213,6 +1358,205 @@ class WebsiteBridgeServer:
             return None
         return body
 
+    def _state_storage_key(self, state_key: str) -> str:
+        return f"state:{state_key}"
+
+    def _state_file(self, state_key: str) -> Path:
+        return self.data_dir / f"shop_state_{state_key}.json"
+
+    def _is_state_key_allowed(self, state_key: str) -> bool:
+        return state_key in self.state_keys
+
+    def _default_state_value(self, state_key: str) -> Any:
+        defaults: dict[str, Any] = {
+            "settings": {
+                "storeName": os.getenv("BRAND_NAME", "Roblox Keys"),
+                "currency": "USD",
+                "paypalEmail": "",
+                "stripeKey": "",
+                "cryptoAddress": "",
+            },
+            "users": [
+                {
+                    "id": "admin-1337",
+                    "email": self.admin_email,
+                    "password": self.admin_password,
+                    "role": "admin",
+                    "createdAt": datetime.now(timezone.utc).isoformat(),
+                }
+            ],
+            "logs": [
+                {
+                    "id": "log-boot",
+                    "event": "System core initialized",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "status": "SUCCESS",
+                    "ip": "127.0.0.1",
+                }
+            ],
+            "categories": [],
+            "groups": [],
+            "coupons": [],
+            "invoices": [],
+            "tickets": [],
+            "feedbacks": [],
+            "domains": [],
+            "team": [],
+            "blacklist": [],
+            "payment_methods": [
+                {"id": "pm-card", "name": "Card", "enabled": True, "instructions": "Stripe/Card checkout"},
+                {"id": "pm-paypal", "name": "PayPal", "enabled": True, "instructions": "PayPal email checkout"},
+                {"id": "pm-crypto", "name": "Crypto", "enabled": True, "instructions": "Manual wallet transfer"},
+            ],
+        }
+        value = defaults.get(state_key, [])
+        return json.loads(json.dumps(value))
+
+    async def _load_state(self, state_key: str) -> Any:
+        if not self._is_state_key_allowed(state_key):
+            return self._default_state_value(state_key)
+
+        expected = self._default_state_value(state_key)
+        if self.use_supabase_storage and self.pg_pool is not None:
+            data = await self._db_get_json(self._state_storage_key(state_key), default=None)
+        else:
+            data = self._read_json(self._state_file(state_key), default=None)
+
+        if data is None:
+            data = expected
+
+        if isinstance(expected, list) and not isinstance(data, list):
+            data = expected
+        elif isinstance(expected, dict) and not isinstance(data, dict):
+            data = expected
+
+        if state_key == "users" and isinstance(data, list):
+            users = self._ensure_default_admin_user([item for item in data if isinstance(item, dict)])
+            if json.dumps(users, sort_keys=True) != json.dumps(data, sort_keys=True):
+                await self._save_state("users", users)
+            data = users
+        elif state_key == "invoices" and isinstance(data, list):
+            orders = await self._load_orders()
+            synced = self._sync_invoices_with_orders([item for item in data if isinstance(item, dict)], orders)
+            if json.dumps(synced, sort_keys=True) != json.dumps(data, sort_keys=True):
+                await self._save_state("invoices", synced)
+            data = synced
+
+        return data
+
+    async def _save_state(self, state_key: str, value: Any) -> None:
+        if not self._is_state_key_allowed(state_key):
+            return
+
+        if state_key == "users" and isinstance(value, list):
+            value = self._ensure_default_admin_user([item for item in value if isinstance(item, dict)])
+        elif state_key == "logs" and isinstance(value, list):
+            value = [item for item in value if isinstance(item, dict)][:100]
+        elif state_key == "invoices" and isinstance(value, list):
+            orders = await self._load_orders()
+            value = self._sync_invoices_with_orders([item for item in value if isinstance(item, dict)], orders)
+
+        if self.use_supabase_storage and self.pg_pool is not None:
+            await self._db_set_json(self._state_storage_key(state_key), value)
+            return
+
+        self._write_json(self._state_file(state_key), value)
+
+    def _ensure_default_admin_user(self, users: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        normalized: list[dict[str, Any]] = []
+        admin_found = False
+
+        for user in users:
+            email = str(user.get("email", "")).strip().lower()
+            if not email:
+                continue
+            role = str(user.get("role") or "user").strip().lower()
+            normalized_user = {
+                "id": str(user.get("id") or f"user-{int(datetime.now(timezone.utc).timestamp() * 1000)}"),
+                "email": email,
+                "password": str(user.get("password") or ""),
+                "role": "admin" if role == "admin" else "user",
+                "createdAt": str(user.get("createdAt") or datetime.now(timezone.utc).isoformat()),
+            }
+            if email == self.admin_email:
+                normalized_user["id"] = str(user.get("id") or "admin-1337")
+                normalized_user["password"] = self.admin_password
+                normalized_user["role"] = "admin"
+                admin_found = True
+            normalized.append(normalized_user)
+
+        if not admin_found:
+            normalized.insert(
+                0,
+                {
+                    "id": "admin-1337",
+                    "email": self.admin_email,
+                    "password": self.admin_password,
+                    "role": "admin",
+                    "createdAt": datetime.now(timezone.utc).isoformat(),
+                },
+            )
+        return normalized
+
+    async def _append_security_log(self, event: str, status: str) -> None:
+        logs = await self._load_state("logs")
+        if not isinstance(logs, list):
+            logs = []
+        logs = [item for item in logs if isinstance(item, dict)]
+        logs.insert(
+            0,
+            {
+                "id": f"log-{int(datetime.now(timezone.utc).timestamp() * 1000)}",
+                "event": event,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "status": str(status or "SUCCESS").upper(),
+                "ip": "api",
+            },
+        )
+        await self._save_state("logs", logs[:100])
+
+    def _sync_invoices_with_orders(self, invoices: list[dict[str, Any]], orders: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        synced: list[dict[str, Any]] = [item for item in invoices if isinstance(item, dict)]
+        order_to_invoice = {str(item.get("orderId") or ""): item for item in synced if str(item.get("orderId") or "")}
+
+        for order in orders:
+            if not isinstance(order, dict):
+                continue
+            order_id = str(order.get("id") or "").strip()
+            if not order_id:
+                continue
+            user_data = order.get("user")
+            user_email = ""
+            if isinstance(user_data, dict):
+                user_email = str(user_data.get("email") or "").strip()
+            status = str(order.get("status") or "pending").strip().lower()
+            invoice_status = "paid"
+            if status == "refunded":
+                invoice_status = "refunded"
+            elif status in {"pending", "cancelled"}:
+                invoice_status = "unpaid"
+
+            row = order_to_invoice.get(order_id)
+            if row is None:
+                row = {
+                    "id": f"inv-{order_id}",
+                    "orderId": order_id,
+                    "email": user_email or str(order.get("userId") or "guest"),
+                    "total": self._to_float(order.get("total"), default=0.0) or 0.0,
+                    "status": invoice_status,
+                    "createdAt": str(order.get("createdAt") or datetime.now(timezone.utc).isoformat()),
+                }
+                synced.append(row)
+                order_to_invoice[order_id] = row
+            else:
+                row["email"] = user_email or str(row.get("email") or order.get("userId") or "guest")
+                row["total"] = self._to_float(order.get("total"), default=0.0) or 0.0
+                row["status"] = invoice_status
+                row["createdAt"] = str(row.get("createdAt") or order.get("createdAt") or datetime.now(timezone.utc).isoformat())
+
+        synced.sort(key=lambda item: str(item.get("createdAt") or ""), reverse=True)
+        return synced
+
     async def _send_chat_log(self, message: str, reply: str) -> bool:
         channel = self._resolve_channel(self.chat_channel_id)
         if channel is None:
@@ -1380,6 +1724,12 @@ class WebsiteBridgeServer:
         await self._seed_kv_from_json("products", self.products_file, [])
         await self._seed_kv_from_json("orders", self.orders_file, [])
         await self._seed_kv_from_json("pending_payments", self.pending_payments_file, {})
+        for state_key in self.state_keys:
+            await self._seed_kv_from_json(
+                self._state_storage_key(state_key),
+                self._state_file(state_key),
+                self._default_state_value(state_key),
+            )
 
     async def _seed_kv_from_json(self, key: str, path: Path, default: Any) -> None:
         if self.pg_pool is None:
@@ -1450,8 +1800,14 @@ class WebsiteBridgeServer:
     async def _save_orders(self, orders: list[dict[str, Any]]) -> None:
         if self.use_supabase_storage and self.pg_pool is not None:
             await self._db_set_json("orders", orders)
-            return
-        self._write_json(self.orders_file, orders)
+        else:
+            self._write_json(self.orders_file, orders)
+
+        current_invoices = await self._load_state("invoices")
+        if not isinstance(current_invoices, list):
+            current_invoices = []
+        synced_invoices = self._sync_invoices_with_orders(current_invoices, orders)
+        await self._save_state("invoices", synced_invoices)
 
     async def _load_pending_payments(self) -> dict[str, Any]:
         if self.use_supabase_storage and self.pg_pool is not None:
@@ -1609,6 +1965,14 @@ class WebsiteBridgeServer:
         normalized_inventory = [str(item).strip() for item in inventory if str(item).strip()]
         stock_value = self._compute_product_stock({"tiers": normalized_tiers, "inventory": normalized_inventory})
 
+        type_value = str(product.get("type", "OTHER")).strip() or "OTHER"
+        badge_label = str(product.get("cardBadgeLabel", "")).strip()
+        if not badge_label:
+            badge_label = "BUNDLE" if type_value == "BUNDLE" else "ACCOUNT"
+        badge_icon = str(product.get("cardBadgeIcon", "grid")).strip().lower() or "grid"
+        if badge_icon not in {"grid", "key", "shield"}:
+            badge_icon = "grid"
+
         return {
             "id": str(product.get("id", "")).strip(),
             "name": str(product.get("name", "")).strip(),
@@ -1617,7 +1981,7 @@ class WebsiteBridgeServer:
             "price": self._to_float(product.get("price"), default=0.0) or 0.0,
             "originalPrice": self._to_float(product.get("originalPrice"), default=0.0) or 0.0,
             "duration": str(product.get("duration", "1 Month")).strip() or "1 Month",
-            "type": str(product.get("type", "OTHER")).strip() or "OTHER",
+            "type": type_value,
             "features": [str(feature) for feature in features],
             "detailedDescription": [str(line) for line in detailed],
             "image": str(product.get("image", "")).strip(),
@@ -1625,6 +1989,8 @@ class WebsiteBridgeServer:
             "category": str(product.get("category", "")).strip(),
             "group": str(product.get("group", "")).strip(),
             "visibility": str(product.get("visibility", "public")).strip() or "public",
+            "cardBadgeLabel": badge_label,
+            "cardBadgeIcon": badge_icon,
             "hideStockCount": bool(product.get("hideStockCount", False)),
             "showViewsCount": bool(product.get("showViewsCount", False)),
             "showSalesCount": bool(product.get("showSalesCount", False)),

@@ -35,13 +35,12 @@ import {
   PaymentMethodConfig,
   ProductGroup,
   SecurityLog,
-  StorageService,
   TeamMember,
   Ticket as SupportTicket,
   User,
 } from '../services/storageService';
 import { BRAND_CONFIG, BRAND_INITIALS } from '../config/brandConfig';
-import { AdminSummaryTopProduct, ShopApiService } from '../services/shopApiService';
+import { AdminSummaryTopProduct, ShopApiService, ShopStateKey, ShopStateMap } from '../services/shopApiService';
 
 interface AdminPanelProps {
   products: Product[];
@@ -85,6 +84,8 @@ const newProduct = (): Product => ({
   category: '',
   group: '',
   visibility: 'public',
+  cardBadgeLabel: '',
+  cardBadgeIcon: 'grid',
   hideStockCount: false,
   showViewsCount: false,
   showSalesCount: false,
@@ -196,82 +197,121 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
   const [teamDraft, setTeamDraft] = useState({ email: '', role: 'support' });
   const [blacklistDraft, setBlacklistDraft] = useState({ type: 'email' as BlacklistEntry['type'], value: '', reason: '' });
 
-  const refresh = () => {
-    setOrders(StorageService.getOrders());
-    setUsers(StorageService.getUsers());
-    setLogs(StorageService.getLogs());
-    setCategories(StorageService.getCategories());
-    setGroups(StorageService.getGroups());
-    setCoupons(StorageService.getCoupons());
-    setInvoices(StorageService.getInvoices());
-    setTickets(StorageService.getTickets());
-    setFeedbacks(StorageService.getFeedbacks());
-    setDomains(StorageService.getDomains());
-    setPaymentMethods(StorageService.getPaymentMethods());
-    setTeam(StorageService.getTeamMembers());
-    setBlacklist(StorageService.getBlacklist());
-    ShopApiService.getPaymentMethods()
-      .then((methods) => setGatewayMethods(methods))
-      .catch(() => setGatewayMethods({
-        card: { enabled: false, automated: true },
-        paypal: { enabled: false, automated: false },
-        crypto: { enabled: false, automated: false },
-      }));
-    ShopApiService.getAdminSummary()
-      .then((summary) => {
-        if (Array.isArray(summary.orders)) {
-          setOrders(summary.orders);
-        }
-        if (Array.isArray(summary.customers)) {
-          const normalizedUsers: User[] = summary.customers.map((customer, index) => {
-            const id = String(customer.id || customer.email || `customer-${index + 1}`);
-            return {
-              id,
-              email: String(customer.email || id),
-              role: 'user',
-              createdAt: String(customer.createdAt || new Date().toISOString()),
-            };
-          });
-          setUsers(normalizedUsers);
+  const setRemoteState = async <K extends ShopStateKey>(key: K, value: ShopStateMap[K]) => {
+    await ShopApiService.setState(key, value);
+  };
 
-          const nextStats: Record<string, { orders: number; spent: number }> = {};
-          summary.customers.forEach((customer, index) => {
-            const id = String(customer.id || customer.email || `customer-${index + 1}`);
-            nextStats[id] = {
-              orders: Number(customer.orders || 0),
-              spent: Number(customer.totalSpent || 0),
-            };
-          });
-          setSummaryCustomerStats(nextStats);
-        }
-        setSummaryMetrics({
-          revenue: Number(summary.metrics.revenue || 0),
-          unitsSold: Number(summary.metrics.unitsSold || 0),
-          pendingOrders: Number(summary.metrics.pendingOrders || 0),
-          totalOrders: Number(summary.metrics.totalOrders || 0),
-          customers: Number(summary.metrics.customers || 0),
+  const appendSecurityLog = async (event: string, status: SecurityLog['status']) => {
+    const entry: SecurityLog = {
+      id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      event,
+      timestamp: new Date().toISOString(),
+      status,
+      ip: 'api',
+    };
+    const nextLogs = [entry, ...logs].slice(0, 100);
+    setLogs(nextLogs);
+    try {
+      await setRemoteState('logs', nextLogs);
+    } catch {
+      // Keep UI responsive even if log persistence fails.
+    }
+  };
+
+  const refresh = async () => {
+    try {
+      const [
+        summary,
+        methods,
+        usersState,
+        logsState,
+        categoriesState,
+        groupsState,
+        couponsState,
+        invoicesState,
+        ticketsState,
+        feedbacksState,
+        domainsState,
+        paymentMethodsState,
+        teamState,
+        blacklistState,
+        settingsState,
+      ] = await Promise.all([
+        ShopApiService.getAdminSummary(),
+        ShopApiService.getPaymentMethods(),
+        ShopApiService.getState('users'),
+        ShopApiService.getState('logs'),
+        ShopApiService.getState('categories'),
+        ShopApiService.getState('groups'),
+        ShopApiService.getState('coupons'),
+        ShopApiService.getState('invoices'),
+        ShopApiService.getState('tickets'),
+        ShopApiService.getState('feedbacks'),
+        ShopApiService.getState('domains'),
+        ShopApiService.getState('payment_methods'),
+        ShopApiService.getState('team'),
+        ShopApiService.getState('blacklist'),
+        ShopApiService.getState('settings'),
+      ]);
+
+      setGatewayMethods(methods);
+      setUsers(usersState);
+      setLogs(logsState);
+      setCategories(categoriesState);
+      setGroups(groupsState);
+      setCoupons(couponsState);
+      setInvoices(invoicesState);
+      setTickets(ticketsState);
+      setFeedbacks(feedbacksState);
+      setDomains(domainsState);
+      setPaymentMethods(paymentMethodsState);
+      setTeam(teamState);
+      setBlacklist(blacklistState);
+      setSettings(settingsState);
+
+      if (Array.isArray(summary.orders)) {
+        setOrders(summary.orders);
+      }
+      if (Array.isArray(summary.customers)) {
+        const nextStats: Record<string, { orders: number; spent: number }> = {};
+        summary.customers.forEach((customer, index) => {
+          const id = String(customer.id || customer.email || `customer-${index + 1}`);
+          nextStats[id] = {
+            orders: Number(customer.orders || 0),
+            spent: Number(customer.totalSpent || 0),
+          };
         });
-        const top = (summary.topProducts || []).map((row: AdminSummaryTopProduct) => ({
-          name: String(row.name || row.id || 'Unknown Product'),
-          units: Number(row.units || 0),
-          revenue: Number(row.revenue || 0),
-        }));
-        setSummaryTopProducts(top);
-      })
-      .catch(() => {
-        setSummaryMetrics(null);
-        setSummaryTopProducts([]);
-        setSummaryCustomerStats({});
+        setSummaryCustomerStats(nextStats);
+      }
+      setSummaryMetrics({
+        revenue: Number(summary.metrics.revenue || 0),
+        unitsSold: Number(summary.metrics.unitsSold || 0),
+        pendingOrders: Number(summary.metrics.pendingOrders || 0),
+        totalOrders: Number(summary.metrics.totalOrders || 0),
+        customers: Number(summary.metrics.customers || 0),
       });
+      const top = (summary.topProducts || []).map((row: AdminSummaryTopProduct) => ({
+        name: String(row.name || row.id || 'Unknown Product'),
+        units: Number(row.units || 0),
+        revenue: Number(row.revenue || 0),
+      }));
+      setSummaryTopProducts(top);
+    } catch (error) {
+      console.error('Failed to refresh admin data from API:', error);
+      setSummaryMetrics(null);
+      setSummaryTopProducts([]);
+      setSummaryCustomerStats({});
+      setMessage('Failed to load admin data from API.');
+    }
   };
 
   useEffect(() => {
-    refresh();
+    void refresh();
   }, [tab, products]);
 
   useEffect(() => {
     if (!['dashboard', 'orders', 'customers'].includes(tab)) return;
-    const timer = window.setInterval(() => refresh(), 15000);
+    const timer = window.setInterval(() => { void refresh(); }, 15000);
     return () => window.clearInterval(timer);
   }, [tab]);
 
@@ -408,7 +448,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
 
     const exists = products.some((p) => p.id === normalized.id);
     ShopApiService.upsertProduct(normalized)
-      .then((result) => {
+      .then(async (result) => {
         if (result.products) {
           setProducts(result.products);
         } else if (result.product) {
@@ -416,16 +456,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
         } else {
           setProducts((prev) => exists ? prev.map((item) => (item.id === normalized.id ? normalized : item)) : [normalized, ...prev]);
         }
-        StorageService.addLog(`${exists ? 'Updated' : 'Created'} product ${normalized.name}`, 'SUCCESS');
+        await appendSecurityLog(`${exists ? 'Updated' : 'Created'} product ${normalized.name}`, 'SUCCESS');
         setMessage(`Product ${exists ? 'updated' : 'created'} successfully.`);
         setOpenEditor(false);
       })
       .catch((error) => {
-        console.warn('API upsert failed, saved locally.', error);
-        setProducts((prev) => exists ? prev.map((item) => (item.id === normalized.id ? normalized : item)) : [normalized, ...prev]);
-        StorageService.addLog(`${exists ? 'Updated' : 'Created'} product locally ${normalized.name}`, 'WARNING');
-        setMessage('API unavailable. Product saved locally.');
-        setOpenEditor(false);
+        console.error('API upsert failed.', error);
+        setMessage(error instanceof Error ? error.message : 'Failed to save product.');
       });
   };
 
@@ -434,17 +471,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
     if (!product || !confirm(`Delete "${product.name}"?`)) return;
 
     ShopApiService.deleteProduct(id)
-      .then((result) => {
+      .then(async (result) => {
         if (result.products) setProducts(result.products);
         else setProducts((prev) => prev.filter((x) => x.id !== id));
-        StorageService.addLog(`Deleted product ${product.name}`, 'WARNING');
+        await appendSecurityLog(`Deleted product ${product.name}`, 'WARNING');
         setMessage(`Deleted ${product.name}.`);
       })
       .catch((error) => {
-        console.warn('API delete failed, deleting locally.', error);
-        setProducts((prev) => prev.filter((x) => x.id !== id));
-        StorageService.addLog(`Deleted product locally ${product.name}`, 'WARNING');
-        setMessage('API unavailable. Deleted locally.');
+        console.error('API delete failed.', error);
+        setMessage(error instanceof Error ? error.message : `Failed to delete ${product.name}.`);
       });
   };
 
@@ -456,17 +491,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
     };
 
     ShopApiService.upsertProduct(copy)
-      .then((result) => {
+      .then(async (result) => {
         if (result.products) setProducts(result.products);
         else setProducts((prev) => [copy, ...prev]);
-        StorageService.addLog(`Cloned product ${product.name}`, 'SUCCESS');
+        await appendSecurityLog(`Cloned product ${product.name}`, 'SUCCESS');
         setMessage(`Cloned ${product.name}.`);
       })
       .catch((error) => {
-        console.warn('API clone failed, cloning locally.', error);
-        setProducts((prev) => [copy, ...prev]);
-        StorageService.addLog(`Cloned locally ${product.name}`, 'WARNING');
-        setMessage('API unavailable. Cloned locally.');
+        console.error('API clone failed.', error);
+        setMessage(error instanceof Error ? error.message : `Failed to clone ${product.name}.`);
       });
   };
 
@@ -573,36 +606,57 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
       });
   };
 
-  const saveSettings = () => {
-    StorageService.saveSettings(settings);
-    setMessage('Settings saved.');
+  const saveSettings = async () => {
+    try {
+      await setRemoteState('settings', settings);
+      await appendSecurityLog('Store settings updated', 'SUCCESS');
+      setMessage('Settings saved.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to save settings.');
+    }
   };
 
-  const addCategory = () => {
+  const addCategory = async () => {
     const name = categoryDraft.name.trim();
     if (!name) return;
     const slug = (categoryDraft.slug || name).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-    StorageService.upsertCategory({ id: `cat-${Date.now()}`, name, slug, visibility: categoryDraft.visibility });
-    StorageService.addLog(`Created category ${name}`, 'SUCCESS');
-    setCategoryDraft({ name: '', slug: '', visibility: 'public' });
-    refresh();
-    setMessage('Category added.');
+    const nextCategories = [
+      { id: `cat-${Date.now()}`, name, slug, visibility: categoryDraft.visibility } as Category,
+      ...categories,
+    ];
+    try {
+      await setRemoteState('categories', nextCategories);
+      await appendSecurityLog(`Created category ${name}`, 'SUCCESS');
+      setCategoryDraft({ name: '', slug: '', visibility: 'public' });
+      await refresh();
+      setMessage('Category added.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to add category.');
+    }
   };
 
-  const addGroup = () => {
+  const addGroup = async () => {
     const name = groupDraft.name.trim();
     if (!name) return;
-    StorageService.upsertGroup({ id: `grp-${Date.now()}`, name, visibility: groupDraft.visibility });
-    StorageService.addLog(`Created group ${name}`, 'SUCCESS');
-    setGroupDraft({ name: '', visibility: 'public' });
-    refresh();
-    setMessage('Group added.');
+    const nextGroups = [
+      { id: `grp-${Date.now()}`, name, visibility: groupDraft.visibility } as ProductGroup,
+      ...groups,
+    ];
+    try {
+      await setRemoteState('groups', nextGroups);
+      await appendSecurityLog(`Created group ${name}`, 'SUCCESS');
+      setGroupDraft({ name: '', visibility: 'public' });
+      await refresh();
+      setMessage('Group added.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to add group.');
+    }
   };
 
-  const addCoupon = () => {
+  const addCoupon = async () => {
     const code = couponDraft.code.trim().toUpperCase();
     if (!code) return;
-    StorageService.upsertCoupon({
+    const nextCoupons = [{
       id: `cp-${Date.now()}`,
       code,
       type: couponDraft.type,
@@ -611,72 +665,224 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
       maxUses: Number(couponDraft.maxUses),
       expiresAt: couponDraft.expiresAt || undefined,
       active: true,
-    });
-    StorageService.addLog(`Created coupon ${code}`, 'SUCCESS');
-    setCouponDraft({ code: '', type: 'percent', value: 10, maxUses: 100, expiresAt: '' });
-    refresh();
-    setMessage('Coupon added.');
+    } as Coupon, ...coupons];
+    try {
+      await setRemoteState('coupons', nextCoupons);
+      await appendSecurityLog(`Created coupon ${code}`, 'SUCCESS');
+      setCouponDraft({ code: '', type: 'percent', value: 10, maxUses: 100, expiresAt: '' });
+      await refresh();
+      setMessage('Coupon added.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to add coupon.');
+    }
   };
 
-  const addTicket = () => {
+  const addTicket = async () => {
     if (!ticketDraft.subject.trim() || !ticketDraft.customerEmail.trim()) return;
-    StorageService.upsertTicket({
+    const nextTickets = [{
       id: `tic-${Date.now()}`,
       subject: ticketDraft.subject.trim(),
       customerEmail: ticketDraft.customerEmail.trim(),
       status: 'open',
       priority: ticketDraft.priority,
       createdAt: new Date().toISOString(),
-    });
-    setTicketDraft({ subject: '', customerEmail: '', priority: 'medium' });
-    refresh();
-    setMessage('Ticket added.');
+    } as SupportTicket, ...tickets];
+    try {
+      await setRemoteState('tickets', nextTickets);
+      setTicketDraft({ subject: '', customerEmail: '', priority: 'medium' });
+      await refresh();
+      setMessage('Ticket added.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to add ticket.');
+    }
   };
 
-  const addFeedback = () => {
+  const addFeedback = async () => {
     if (!feedbackDraft.customerEmail.trim() || !feedbackDraft.message.trim()) return;
-    StorageService.upsertFeedback({
+    const nextFeedbacks = [{
       id: `fb-${Date.now()}`,
       customerEmail: feedbackDraft.customerEmail.trim(),
       rating: Math.max(1, Math.min(5, Number(feedbackDraft.rating))),
       message: feedbackDraft.message.trim(),
       createdAt: new Date().toISOString(),
-    });
-    setFeedbackDraft({ customerEmail: '', rating: 5, message: '' });
-    refresh();
-    setMessage('Feedback added.');
+    } as Feedback, ...feedbacks];
+    try {
+      await setRemoteState('feedbacks', nextFeedbacks);
+      setFeedbackDraft({ customerEmail: '', rating: 5, message: '' });
+      await refresh();
+      setMessage('Feedback added.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to add feedback.');
+    }
   };
 
-  const addDomain = () => {
+  const addDomain = async () => {
     const domain = domainDraft.domain.trim().toLowerCase();
     if (!domain) return;
-    StorageService.upsertDomain({ id: `dom-${Date.now()}`, domain, verified: false, createdAt: new Date().toISOString() });
-    setDomainDraft({ domain: '' });
-    refresh();
-    setMessage('Domain added.');
+    const nextDomains = [{ id: `dom-${Date.now()}`, domain, verified: false, createdAt: new Date().toISOString() } as DomainRecord, ...domains];
+    try {
+      await setRemoteState('domains', nextDomains);
+      setDomainDraft({ domain: '' });
+      await refresh();
+      setMessage('Domain added.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to add domain.');
+    }
   };
 
-  const addTeamMember = () => {
+  const addTeamMember = async () => {
     const email = teamDraft.email.trim().toLowerCase();
     if (!email) return;
-    StorageService.upsertTeamMember({ id: `team-${Date.now()}`, email, role: teamDraft.role.trim() || 'support', createdAt: new Date().toISOString() });
-    setTeamDraft({ email: '', role: 'support' });
-    refresh();
-    setMessage('Team member added.');
+    const nextTeam = [{ id: `team-${Date.now()}`, email, role: teamDraft.role.trim() || 'support', createdAt: new Date().toISOString() } as TeamMember, ...team];
+    try {
+      await setRemoteState('team', nextTeam);
+      setTeamDraft({ email: '', role: 'support' });
+      await refresh();
+      setMessage('Team member added.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to add team member.');
+    }
   };
 
-  const addBlacklistEntry = () => {
+  const addBlacklistEntry = async () => {
     if (!blacklistDraft.value.trim()) return;
-    StorageService.upsertBlacklistEntry({
+    const nextBlacklist = [{
       id: `bl-${Date.now()}`,
       type: blacklistDraft.type,
       value: blacklistDraft.value.trim(),
       reason: blacklistDraft.reason.trim() || 'manual',
       createdAt: new Date().toISOString(),
-    });
-    setBlacklistDraft({ type: 'email', value: '', reason: '' });
-    refresh();
-    setMessage('Blacklist entry added.');
+    } as BlacklistEntry, ...blacklist];
+    try {
+      await setRemoteState('blacklist', nextBlacklist);
+      setBlacklistDraft({ type: 'email', value: '', reason: '' });
+      await refresh();
+      setMessage('Blacklist entry added.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to add blacklist entry.');
+    }
+  };
+
+  const deleteCategoryById = async (id: string) => {
+    try {
+      await setRemoteState('categories', categories.filter((item) => item.id !== id));
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to delete category.');
+    }
+  };
+
+  const deleteGroupById = async (id: string) => {
+    try {
+      await setRemoteState('groups', groups.filter((item) => item.id !== id));
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to delete group.');
+    }
+  };
+
+  const updateOrderStatus = async (orderId: string, nextStatus: Order['status']) => {
+    try {
+      await ShopApiService.updateOrderStatus(orderId, nextStatus);
+      await refresh();
+      setMessage(`Order ${orderId} updated to ${nextStatus}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : `Failed to update order ${orderId}.`);
+    }
+  };
+
+  const toggleCoupon = async (coupon: Coupon) => {
+    try {
+      const nextCoupons = coupons.map((item) => item.id === coupon.id ? { ...item, active: !item.active } : item);
+      await setRemoteState('coupons', nextCoupons);
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to update coupon.');
+    }
+  };
+
+  const deleteCouponById = async (id: string) => {
+    try {
+      await setRemoteState('coupons', coupons.filter((item) => item.id !== id));
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to delete coupon.');
+    }
+  };
+
+  const toggleTicket = async (ticket: SupportTicket) => {
+    try {
+      const nextTickets = tickets.map((item) => item.id === ticket.id ? { ...item, status: item.status === 'open' ? 'closed' : 'open' } : item);
+      await setRemoteState('tickets', nextTickets);
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to update ticket.');
+    }
+  };
+
+  const deleteTicketById = async (id: string) => {
+    try {
+      await setRemoteState('tickets', tickets.filter((item) => item.id !== id));
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to delete ticket.');
+    }
+  };
+
+  const deleteFeedbackById = async (id: string) => {
+    try {
+      await setRemoteState('feedbacks', feedbacks.filter((item) => item.id !== id));
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to delete feedback.');
+    }
+  };
+
+  const toggleDomain = async (domain: DomainRecord) => {
+    try {
+      const nextDomains = domains.map((item) => item.id === domain.id ? { ...item, verified: !item.verified } : item);
+      await setRemoteState('domains', nextDomains);
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to update domain.');
+    }
+  };
+
+  const deleteDomainById = async (id: string) => {
+    try {
+      await setRemoteState('domains', domains.filter((item) => item.id !== id));
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to delete domain.');
+    }
+  };
+
+  const updatePaymentMethod = async (method: PaymentMethodConfig) => {
+    try {
+      const nextMethods = paymentMethods.map((item) => item.id === method.id ? method : item);
+      await setRemoteState('payment_methods', nextMethods);
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to update payment method.');
+    }
+  };
+
+  const deleteTeamMemberById = async (id: string) => {
+    try {
+      await setRemoteState('team', team.filter((item) => item.id !== id));
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to delete team member.');
+    }
+  };
+
+  const deleteBlacklistEntryById = async (id: string) => {
+    try {
+      await setRemoteState('blacklist', blacklist.filter((item) => item.id !== id));
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to delete blacklist entry.');
+    }
   };
 
   return (
@@ -959,7 +1165,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
                 <button onClick={addCategory} className={primaryButtonClass}>Add Category</button>
               </div>
             </div>
-            <div className={cardClass}><div className="space-y-2">{categories.map((c) => <div key={c.id} className="bg-white/5 rounded-lg p-3 flex items-center justify-between"><div><div className="font-semibold">{c.name}</div><div className="text-xs text-yellow-200/60">{c.slug} | {c.visibility}</div></div><button onClick={() => { StorageService.deleteCategory(c.id); refresh(); }} className="px-2 py-1 rounded bg-red-500/20"><Trash2 className="w-4 h-4" /></button></div>)}{categories.length === 0 && <div className="text-yellow-200/60">No categories yet.</div>}</div></div>
+            <div className={cardClass}><div className="space-y-2">{categories.map((c) => <div key={c.id} className="bg-white/5 rounded-lg p-3 flex items-center justify-between"><div><div className="font-semibold">{c.name}</div><div className="text-xs text-yellow-200/60">{c.slug} | {c.visibility}</div></div><button onClick={() => { void deleteCategoryById(c.id); }} className="px-2 py-1 rounded bg-red-500/20"><Trash2 className="w-4 h-4" /></button></div>)}{categories.length === 0 && <div className="text-yellow-200/60">No categories yet.</div>}</div></div>
           </div>
         )}
 
@@ -972,7 +1178,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
                 <button onClick={addGroup} className={primaryButtonClass}>Add Group</button>
               </div>
             </div>
-            <div className={cardClass}><div className="space-y-2">{groups.map((g) => <div key={g.id} className="bg-white/5 rounded-lg p-3 flex items-center justify-between"><div><div className="font-semibold">{g.name}</div><div className="text-xs text-yellow-200/60">{g.visibility}</div></div><button onClick={() => { StorageService.deleteGroup(g.id); refresh(); }} className="px-2 py-1 rounded bg-red-500/20"><Trash2 className="w-4 h-4" /></button></div>)}{groups.length === 0 && <div className="text-yellow-200/60">No groups yet.</div>}</div></div>
+            <div className={cardClass}><div className="space-y-2">{groups.map((g) => <div key={g.id} className="bg-white/5 rounded-lg p-3 flex items-center justify-between"><div><div className="font-semibold">{g.name}</div><div className="text-xs text-yellow-200/60">{g.visibility}</div></div><button onClick={() => { void deleteGroupById(g.id); }} className="px-2 py-1 rounded bg-red-500/20"><Trash2 className="w-4 h-4" /></button></div>)}{groups.length === 0 && <div className="text-yellow-200/60">No groups yet.</div>}</div></div>
           </div>
         )}
 
@@ -983,7 +1189,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
               <tbody>{orders.map((o) => {
                 const userPayload = (o as unknown as { user?: { email?: string } }).user;
                 const customerLabel = usersById.get(o.userId)?.email || userPayload?.email || o.userId;
-                return <tr key={o.id} className="border-b border-[#facc15]/10"><td className="py-2 font-mono text-xs">{o.id}</td><td className="py-2">{customerLabel}</td><td className="py-2 text-right">${o.total.toFixed(2)}</td><td className="py-2 text-yellow-200/60">{new Date(o.createdAt).toLocaleString()}</td><td className="py-2 text-right"><select value={o.status} onChange={(e) => { const nextStatus = e.target.value as Order['status']; ShopApiService.updateOrderStatus(o.id, nextStatus).then(() => { StorageService.updateOrderStatus(o.id, nextStatus); refresh(); setMessage(`Order ${o.id} updated to ${nextStatus}.`); }).catch(() => { StorageService.updateOrderStatus(o.id, nextStatus); refresh(); setMessage(`Order ${o.id} updated locally. Backend sync failed.`); }); }} className={fieldCompactClass}><option value="pending">pending</option><option value="completed">completed</option><option value="refunded">refunded</option><option value="cancelled">cancelled</option></select></td></tr>;
+                return <tr key={o.id} className="border-b border-[#facc15]/10"><td className="py-2 font-mono text-xs">{o.id}</td><td className="py-2">{customerLabel}</td><td className="py-2 text-right">${o.total.toFixed(2)}</td><td className="py-2 text-yellow-200/60">{new Date(o.createdAt).toLocaleString()}</td><td className="py-2 text-right"><select value={o.status} onChange={(e) => { const nextStatus = e.target.value as Order['status']; void updateOrderStatus(o.id, nextStatus); }} className={fieldCompactClass}><option value="pending">pending</option><option value="completed">completed</option><option value="refunded">refunded</option><option value="cancelled">cancelled</option></select></td></tr>;
               })}</tbody>
             </table>
           </div>
@@ -1028,7 +1234,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
             </div>
             <div className={cardClass + ' overflow-x-auto'}>
               <table className="w-full text-sm"><thead className="text-yellow-200/70 border-b border-[#facc15]/20"><tr><th className="text-left py-2">Code</th><th className="text-left py-2">Type</th><th className="text-right py-2">Value</th><th className="text-right py-2">Uses</th><th className="text-left py-2">Expires</th><th className="text-right py-2">Actions</th></tr></thead>
-                <tbody>{coupons.map((c) => <tr key={c.id} className="border-b border-[#facc15]/10"><td className="py-2 font-bold">{c.code}</td><td className="py-2">{c.type}</td><td className="py-2 text-right">{c.value}</td><td className="py-2 text-right">{c.uses}/{c.maxUses}</td><td className="py-2 text-yellow-200/60">{c.expiresAt ? new Date(c.expiresAt).toLocaleString() : '-'}</td><td className="py-2 text-right"><div className="inline-flex gap-2"><button onClick={() => { StorageService.upsertCoupon({ ...c, active: !c.active }); refresh(); }} className="px-2 py-1 rounded bg-white/10">{c.active ? 'Disable' : 'Enable'}</button><button onClick={() => { StorageService.deleteCoupon(c.id); refresh(); }} className="px-2 py-1 rounded bg-red-500/20">Delete</button></div></td></tr>)}</tbody>
+                <tbody>{coupons.map((c) => <tr key={c.id} className="border-b border-[#facc15]/10"><td className="py-2 font-bold">{c.code}</td><td className="py-2">{c.type}</td><td className="py-2 text-right">{c.value}</td><td className="py-2 text-right">{c.uses}/{c.maxUses}</td><td className="py-2 text-yellow-200/60">{c.expiresAt ? new Date(c.expiresAt).toLocaleString() : '-'}</td><td className="py-2 text-right"><div className="inline-flex gap-2"><button onClick={() => { void toggleCoupon(c); }} className="px-2 py-1 rounded bg-white/10">{c.active ? 'Disable' : 'Enable'}</button><button onClick={() => { void deleteCouponById(c.id); }} className="px-2 py-1 rounded bg-red-500/20">Delete</button></div></td></tr>)}</tbody>
               </table>
             </div>
           </div>
@@ -1046,7 +1252,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
             </div>
             <div className={cardClass + ' overflow-x-auto'}>
               <table className="w-full text-sm"><thead className="text-yellow-200/70 border-b border-[#facc15]/20"><tr><th className="text-left py-2">Subject</th><th className="text-left py-2">Customer</th><th className="text-left py-2">Priority</th><th className="text-left py-2">Date</th><th className="text-right py-2">Actions</th></tr></thead>
-                <tbody>{tickets.map((t) => <tr key={t.id} className="border-b border-[#facc15]/10"><td className="py-2">{t.subject}</td><td className="py-2">{t.customerEmail}</td><td className="py-2">{t.priority}</td><td className="py-2 text-yellow-200/60">{new Date(t.createdAt).toLocaleString()}</td><td className="py-2 text-right"><div className="inline-flex gap-2"><button onClick={() => { StorageService.upsertTicket({ ...t, status: t.status === 'open' ? 'closed' : 'open' }); refresh(); }} className="px-2 py-1 rounded bg-white/10">{t.status === 'open' ? 'Close' : 'Reopen'}</button><button onClick={() => { StorageService.deleteTicket(t.id); refresh(); }} className="px-2 py-1 rounded bg-red-500/20">Delete</button></div></td></tr>)}</tbody>
+                <tbody>{tickets.map((t) => <tr key={t.id} className="border-b border-[#facc15]/10"><td className="py-2">{t.subject}</td><td className="py-2">{t.customerEmail}</td><td className="py-2">{t.priority}</td><td className="py-2 text-yellow-200/60">{new Date(t.createdAt).toLocaleString()}</td><td className="py-2 text-right"><div className="inline-flex gap-2"><button onClick={() => { void toggleTicket(t); }} className="px-2 py-1 rounded bg-white/10">{t.status === 'open' ? 'Close' : 'Reopen'}</button><button onClick={() => { void deleteTicketById(t.id); }} className="px-2 py-1 rounded bg-red-500/20">Delete</button></div></td></tr>)}</tbody>
               </table>
             </div>
           </div>
@@ -1062,7 +1268,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
                 <button onClick={addFeedback} className={primaryButtonClass}>Add Feedback</button>
               </div>
             </div>
-            <div className={cardClass}><div className="space-y-2">{feedbacks.map((f) => <div key={f.id} className="bg-white/5 rounded-lg p-3 flex items-start justify-between"><div><div className="font-semibold">{f.customerEmail} | {f.rating}/5</div><div className="text-sm text-yellow-100/80">{f.message}</div><div className="text-xs text-yellow-200/60">{new Date(f.createdAt).toLocaleString()}</div></div><button onClick={() => { StorageService.deleteFeedback(f.id); refresh(); }} className="px-2 py-1 rounded bg-red-500/20">Delete</button></div>)}{feedbacks.length === 0 && <div className="text-yellow-200/60">No feedbacks yet.</div>}</div></div>
+            <div className={cardClass}><div className="space-y-2">{feedbacks.map((f) => <div key={f.id} className="bg-white/5 rounded-lg p-3 flex items-start justify-between"><div><div className="font-semibold">{f.customerEmail} | {f.rating}/5</div><div className="text-sm text-yellow-100/80">{f.message}</div><div className="text-xs text-yellow-200/60">{new Date(f.createdAt).toLocaleString()}</div></div><button onClick={() => { void deleteFeedbackById(f.id); }} className="px-2 py-1 rounded bg-red-500/20">Delete</button></div>)}{feedbacks.length === 0 && <div className="text-yellow-200/60">No feedbacks yet.</div>}</div></div>
           </div>
         )}
 
@@ -1074,7 +1280,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
                 <button onClick={addDomain} className={primaryButtonClass}>Add Domain</button>
               </div>
             </div>
-            <div className={cardClass}><div className="space-y-2">{domains.map((d) => <div key={d.id} className="bg-white/5 rounded-lg p-3 flex items-center justify-between"><div><div className="font-semibold">{d.domain}</div><div className="text-xs text-yellow-200/60">{d.verified ? 'verified' : 'unverified'} | {new Date(d.createdAt).toLocaleDateString()}</div></div><div className="inline-flex gap-2"><button onClick={() => { StorageService.upsertDomain({ ...d, verified: !d.verified }); refresh(); }} className="px-2 py-1 rounded bg-white/10">{d.verified ? 'Unverify' : 'Verify'}</button><button onClick={() => { StorageService.deleteDomain(d.id); refresh(); }} className="px-2 py-1 rounded bg-red-500/20">Delete</button></div></div>)}{domains.length === 0 && <div className="text-yellow-200/60">No domains yet.</div>}</div></div>
+            <div className={cardClass}><div className="space-y-2">{domains.map((d) => <div key={d.id} className="bg-white/5 rounded-lg p-3 flex items-center justify-between"><div><div className="font-semibold">{d.domain}</div><div className="text-xs text-yellow-200/60">{d.verified ? 'verified' : 'unverified'} | {new Date(d.createdAt).toLocaleDateString()}</div></div><div className="inline-flex gap-2"><button onClick={() => { void toggleDomain(d); }} className="px-2 py-1 rounded bg-white/10">{d.verified ? 'Unverify' : 'Verify'}</button><button onClick={() => { void deleteDomainById(d.id); }} className="px-2 py-1 rounded bg-red-500/20">Delete</button></div></div>)}{domains.length === 0 && <div className="text-yellow-200/60">No domains yet.</div>}</div></div>
           </div>
         )}
 
@@ -1092,9 +1298,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
               <div key={method.id} className="bg-white/5 rounded-lg p-3 flex items-center justify-between gap-3">
                 <div className="flex-1">
                   <div className="font-semibold">{method.name}</div>
-                  <input value={method.instructions} onChange={(e) => StorageService.upsertPaymentMethod({ ...method, instructions: e.target.value })} onBlur={refresh} className={`${fieldCompactClass} mt-1 w-full`} />
+                  <input
+                    value={method.instructions}
+                    onChange={(e) => setPaymentMethods((prev) => prev.map((item) => item.id === method.id ? { ...item, instructions: e.target.value } : item))}
+                    onBlur={() => {
+                      const latest = paymentMethods.find((item) => item.id === method.id) || method;
+                      void updatePaymentMethod(latest);
+                    }}
+                    className={`${fieldCompactClass} mt-1 w-full`}
+                  />
                 </div>
-                <button onClick={() => { StorageService.upsertPaymentMethod({ ...method, enabled: !method.enabled }); refresh(); }} className="px-2 py-1 rounded bg-white/10">{method.enabled ? 'Enabled' : 'Disabled'}</button>
+                <button onClick={() => { void updatePaymentMethod({ ...method, enabled: !method.enabled }); }} className="px-2 py-1 rounded bg-white/10">{method.enabled ? 'Enabled' : 'Disabled'}</button>
               </div>
             ))}
           </div>
@@ -1109,7 +1323,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
                 <button onClick={addTeamMember} className={primaryButtonClass}>Add Team Member</button>
               </div>
             </div>
-            <div className={cardClass}><div className="space-y-2">{team.map((m) => <div key={m.id} className="bg-white/5 rounded-lg p-3 flex items-center justify-between"><div><div className="font-semibold">{m.email}</div><div className="text-xs text-yellow-200/60">{m.role} | {new Date(m.createdAt).toLocaleDateString()}</div></div><button onClick={() => { StorageService.deleteTeamMember(m.id); refresh(); }} className="px-2 py-1 rounded bg-red-500/20">Delete</button></div>)}{team.length === 0 && <div className="text-yellow-200/60">No team members yet.</div>}</div></div>
+            <div className={cardClass}><div className="space-y-2">{team.map((m) => <div key={m.id} className="bg-white/5 rounded-lg p-3 flex items-center justify-between"><div><div className="font-semibold">{m.email}</div><div className="text-xs text-yellow-200/60">{m.role} | {new Date(m.createdAt).toLocaleDateString()}</div></div><button onClick={() => { void deleteTeamMemberById(m.id); }} className="px-2 py-1 rounded bg-red-500/20">Delete</button></div>)}{team.length === 0 && <div className="text-yellow-200/60">No team members yet.</div>}</div></div>
           </div>
         )}
 
@@ -1123,7 +1337,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
                 <button onClick={addBlacklistEntry} className={primaryButtonClass}>Add Entry</button>
               </div>
             </div>
-            <div className={cardClass}><div className="space-y-2">{blacklist.map((b) => <div key={b.id} className="bg-white/5 rounded-lg p-3 flex items-center justify-between"><div><div className="font-semibold">{b.value}</div><div className="text-xs text-yellow-200/60">{b.type} | {b.reason}</div></div><button onClick={() => { StorageService.deleteBlacklistEntry(b.id); refresh(); }} className="px-2 py-1 rounded bg-red-500/20">Delete</button></div>)}{blacklist.length === 0 && <div className="text-yellow-200/60">No blacklist entries yet.</div>}</div></div>
+            <div className={cardClass}><div className="space-y-2">{blacklist.map((b) => <div key={b.id} className="bg-white/5 rounded-lg p-3 flex items-center justify-between"><div><div className="font-semibold">{b.value}</div><div className="text-xs text-yellow-200/60">{b.type} | {b.reason}</div></div><button onClick={() => { void deleteBlacklistEntryById(b.id); }} className="px-2 py-1 rounded bg-red-500/20">Delete</button></div>)}{blacklist.length === 0 && <div className="text-yellow-200/60">No blacklist entries yet.</div>}</div></div>
           </div>
         )}
 
@@ -1269,6 +1483,27 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
                   <div>
                     <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-yellow-200/70">Duration Label</label>
                     <input value={draft.duration} onChange={(e) => setDraft({ ...draft, duration: e.target.value })} className={fieldClass} placeholder="Example: 1 month / lifetime / weekly" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-yellow-200/70">Card Badge Label</label>
+                    <input
+                      value={draft.cardBadgeLabel || ''}
+                      onChange={(e) => setDraft({ ...draft, cardBadgeLabel: e.target.value })}
+                      className={fieldClass}
+                      placeholder="ACCOUNT / KEY / CUSTOM"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-yellow-200/70">Card Badge Icon</label>
+                    <select
+                      value={draft.cardBadgeIcon || 'grid'}
+                      onChange={(e) => setDraft({ ...draft, cardBadgeIcon: e.target.value as Product['cardBadgeIcon'] })}
+                      className={fieldClass}
+                    >
+                      <option value="grid">grid</option>
+                      <option value="key">key</option>
+                      <option value="shield">shield</option>
+                    </select>
                   </div>
                 </div>
               </div>

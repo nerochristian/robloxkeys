@@ -1,5 +1,5 @@
 import React from 'react';
-import { Star } from 'lucide-react';
+import { KeyRound, LayoutGrid, Shield, Star } from 'lucide-react';
 import { Product, ServiceType } from '../types';
 
 interface ProductCardProps {
@@ -13,7 +13,18 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onView }) => 
   const isTiered = tierPrices.length > 0;
   const minTierPrice = isTiered ? Math.min(...tierPrices) : product.price;
   const maxTierPrice = isTiered ? Math.max(...tierPrices) : product.price;
-  const isOutOfStock = product.stock <= 0;
+  const totalTierStock = (product.tiers || []).reduce((sum, tier) => sum + Math.max(0, Number(tier.stock || 0)), 0);
+  const effectiveStock = isTiered ? totalTierStock : Math.max(0, Number(product.stock || 0));
+  const isOutOfStock = effectiveStock <= 0;
+  const isLowStock = !isOutOfStock && effectiveStock <= 5;
+  const stockLabel = isOutOfStock ? 'Out of Stock' : isLowStock ? 'Low Stock' : 'In Stock';
+  const stockLabelClass = isOutOfStock
+    ? 'text-red-400'
+    : isLowStock
+    ? 'text-orange-300'
+    : 'text-[#22c55e]';
+  const badgeIcon = (product.cardBadgeIcon || 'grid').toLowerCase();
+  const badgeLabel = (product.cardBadgeLabel || (product.type === ServiceType.BUNDLE ? 'BUNDLE' : 'ACCOUNT')).trim();
   
   const getHeaderGradient = (type: ServiceType) => {
     switch (type) {
@@ -42,13 +53,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onView }) => 
       <div className={`relative aspect-video w-full bg-gradient-to-br ${getHeaderGradient(product.type)} flex items-center justify-center border-b border-white/5 overflow-hidden md:aspect-auto md:w-[42%] md:border-b-0 md:border-r`}>
         {/* Top-Left Category Badge */}
         <div className="absolute top-4 left-4 bg-black/50 backdrop-blur-lg px-2.5 py-1.5 rounded-lg border border-white/10 flex items-center gap-2 transform transition-transform duration-500 group-hover:translate-x-1">
-           <div className="grid grid-cols-2 gap-1">
-             <div className="w-1.5 h-1.5 bg-[#facc15] rounded-sm"></div>
-             <div className="w-1.5 h-1.5 bg-[#facc15] rounded-sm"></div>
-             <div className="w-1.5 h-1.5 bg-[#facc15] rounded-sm"></div>
-             <div className="w-1.5 h-1.5 bg-[#facc15] rounded-sm"></div>
-           </div>
-           <span className="text-[10px] font-black text-[#facc15] uppercase tracking-widest">{product.type === ServiceType.BUNDLE ? 'BUNDLE' : 'ACCOUNT'}</span>
+          {badgeIcon === 'key' ? (
+            <KeyRound className="w-3.5 h-3.5 text-[#facc15]" />
+          ) : badgeIcon === 'shield' ? (
+            <Shield className="w-3.5 h-3.5 text-[#facc15]" />
+          ) : (
+            <LayoutGrid className="w-3.5 h-3.5 text-[#facc15]" />
+          )}
+          <span className="text-[10px] font-black text-[#facc15] uppercase tracking-widest">{badgeLabel || 'ACCOUNT'}</span>
         </div>
         
         {/* Central Logo Circle */}
@@ -69,7 +81,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onView }) => 
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1">
             <h3 className="text-xl font-black text-white tracking-tight leading-tight mb-1 group-hover:text-[#facc15] transition-colors">{product.name}</h3>
-            <div className={`w-2 h-2 rounded-full transition-all duration-500 ${isOutOfStock ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : 'bg-[#facc15] shadow-[0_0_10px_rgba(250,204,21,0.5)] group-hover:scale-125'}`}></div>
+            <p className={`text-[10px] font-black uppercase tracking-widest ${stockLabelClass}`}>
+              {stockLabel}
+            </p>
           </div>
           <div className="text-right ml-4">
              <p className="text-[9px] font-black text-white/30 uppercase tracking-widest">{isTiered ? 'Range' : 'Starts at'}</p>

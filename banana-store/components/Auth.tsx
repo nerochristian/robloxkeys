@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
 import { Mail, Lock, UserPlus, ArrowLeft, LayoutGrid, LogIn, ShieldCheck } from 'lucide-react';
-import { StorageService, User } from '../services/storageService';
+import { User } from '../services/storageService';
 import { BRAND_CONFIG } from '../config/brandConfig';
+import { ShopApiService } from '../services/shopApiService';
 
 interface AuthProps {
   onAuthComplete: (user: User) => void;
@@ -15,38 +16,23 @@ export const Auth: React.FC<AuthProps> = ({ onAuthComplete, onBack }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    if (isLogin) {
-      const users = StorageService.getUsers();
-      const user = users.find(u => u.email === email && u.password === password);
-      if (user) {
-        StorageService.setSession(user);
-        StorageService.addLog(`User Authentication Successful: ${email}`, 'SUCCESS');
-        onAuthComplete(user);
-      } else {
-        setError('Invalid email or password');
-        StorageService.addLog(`Failed Login Attempt: ${email}`, 'CRITICAL');
-      }
-    } else {
-      const users = StorageService.getUsers();
-      if (users.some(u => u.email === email)) {
-        setError('User already exists');
+    try {
+      const cleanEmail = email.trim().toLowerCase();
+      const cleanPassword = password.trim();
+      if (!cleanEmail || !cleanPassword) {
+        setError('Email and password are required');
         return;
       }
-      const newUser: User = {
-        id: `user-${Date.now()}`,
-        email,
-        password,
-        role: 'user',
-        createdAt: new Date().toISOString()
-      };
-      StorageService.addUser(newUser);
-      StorageService.setSession(newUser);
-      StorageService.addLog(`New User Registered: ${email}`, 'SUCCESS');
-      onAuthComplete(newUser);
+      const user: User = isLogin
+        ? await ShopApiService.authLogin(cleanEmail, cleanPassword)
+        : await ShopApiService.authRegister(cleanEmail, cleanPassword);
+      onAuthComplete(user);
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Authentication failed');
     }
   };
 

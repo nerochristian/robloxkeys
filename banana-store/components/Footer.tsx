@@ -2,7 +2,12 @@ import React from 'react';
 import { LayoutGrid } from 'lucide-react';
 import { BRAND_CONFIG } from '../config/brandConfig';
 
-export const Footer: React.FC = () => {
+interface FooterProps {
+  onOpenPrivacy: () => void;
+  onOpenTerms: () => void;
+}
+
+export const Footer: React.FC<FooterProps> = ({ onOpenPrivacy, onOpenTerms }) => {
   return (
     <footer className="py-32 border-t border-white/5 bg-[#050505]/50 relative overflow-hidden">
       {/* Subtle bottom glow */}
@@ -29,10 +34,28 @@ export const Footer: React.FC = () => {
         </p>
         
         <div className="flex flex-wrap justify-center gap-x-12 gap-y-4 text-[10px] font-black text-white/30 uppercase tracking-[0.25em]">
-           <a href={BRAND_CONFIG.links.discord} className="hover:text-[#facc15] transition-colors">Join Discord</a>
-           <a href={BRAND_CONFIG.links.support} className="hover:text-[#facc15] transition-colors">Contact Support</a>
-           <a href={BRAND_CONFIG.links.privacy} className="hover:text-[#facc15] transition-colors">Privacy Policy</a>
-           <a href={BRAND_CONFIG.links.terms} className="hover:text-[#facc15] transition-colors">Service Terms</a>
+          <a
+            href={BRAND_CONFIG.links.support}
+            target="_blank"
+            rel="noreferrer"
+            className="hover:text-[#facc15] transition-colors"
+          >
+            Contact Support
+          </a>
+          <button
+            type="button"
+            onClick={onOpenPrivacy}
+            className="bg-transparent border-0 p-0 hover:text-[#facc15] transition-colors"
+          >
+            Privacy Policy
+          </button>
+          <button
+            type="button"
+            onClick={onOpenTerms}
+            className="bg-transparent border-0 p-0 hover:text-[#facc15] transition-colors"
+          >
+            Service Terms
+          </button>
         </div>
 
         <div className="mt-16 pt-8 border-t border-white/5 w-full flex justify-center">

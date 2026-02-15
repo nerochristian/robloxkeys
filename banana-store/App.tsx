@@ -7,14 +7,16 @@ import { ProductTierPanel } from './components/ProductTierPanel';
 import { Cart } from './components/Cart';
 import { ChatBot } from './components/ChatBot';
 import { Footer } from './components/Footer';
+import { PrivacyPolicyPage } from './components/PrivacyPolicyPage';
+import { ServiceTermsPage } from './components/ServiceTermsPage';
 import { Auth } from './components/Auth';
 import { UserDashboard } from './components/UserDashboard';
 import { AdminPanel } from './components/AdminPanel';
 import { Checkout } from './components/Checkout';
 import { Product, CartItem, AdminSettings, ProductTier } from './types';
-import { StorageService, Order, User } from './services/storageService';
+import { Order, User } from './services/storageService';
 import { BRAND_CONFIG } from './config/brandConfig';
-import { REQUIRE_API, ShopApiService } from './services/shopApiService';
+import { ShopApiService } from './services/shopApiService';
 import { BotBridgeService } from './services/botBridgeService';
 
 const RESERVED_SLUGS = new Set(['vault', 'admin', 'auth', 'product']);
@@ -40,11 +42,31 @@ const normalizePath = (pathname: string): string => {
   return clean || '/';
 };
 
+const SESSION_KEY = 'robloxkeys.session';
+
+const readSession = (): User | null => {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as User;
+  } catch {
+    return null;
+  }
+};
+
+const writeSession = (user: User | null) => {
+  if (!user) {
+    localStorage.removeItem(SESSION_KEY);
+    return;
+  }
+  localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+};
+
 const resolveRoute = (
   pathname: string,
   catalog: Product[],
   session: User | null
-): { view: 'store' | 'auth' | 'admin' | 'product-detail' | 'dashboard'; product: Product | null } => {
+): { view: 'store' | 'auth' | 'admin' | 'product-detail' | 'dashboard' | 'privacy' | 'terms'; product: Product | null } => {
   const path = normalizePath(pathname);
   const lowered = path.toLowerCase();
 
@@ -56,6 +78,12 @@ const resolveRoute = (
   }
   if (lowered === '/auth') {
     return { view: 'auth', product: null };
+  }
+  if (lowered === '/privacy') {
+    return { view: 'privacy', product: null };
+  }
+  if (lowered === '/terms') {
+    return { view: 'terms', product: null };
   }
   if (lowered === '/') {
     return { view: 'store', product: null };
@@ -80,7 +108,7 @@ const resolveRoute = (
 };
 
 export default function App() {
-  const [view, setView] = useState<'store' | 'auth' | 'admin' | 'product-detail' | 'dashboard'>('store');
+  const [view, setView] = useState<'store' | 'auth' | 'admin' | 'product-detail' | 'dashboard' | 'privacy' | 'terms'>('store');
   const [user, setUser] = useState<User | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedTierId, setSelectedTierId] = useState<string | null>(null);
@@ -123,11 +151,9 @@ export default function App() {
 
   // Initialize and Load Data
   useEffect(() => {
-    StorageService.init();
-    const localProducts = REQUIRE_API ? [] : StorageService.getProducts();
+    const localProducts: Product[] = [];
     setProducts(localProducts);
-    setAdminSettings(StorageService.getSettings());
-    const session = StorageService.getSession();
+    const session = readSession();
     if (session) {
       setUser(session);
     }
@@ -190,16 +216,9 @@ export default function App() {
         }
 
         if (confirmation.products && confirmation.products.length > 0) {
-          if (!REQUIRE_API) {
-            StorageService.saveProducts(confirmation.products);
-          }
           setProducts(confirmation.products);
         }
 
-        const existingOrder = !REQUIRE_API && StorageService.getOrders().some((order) => order.id === confirmation.order!.id);
-        if (!REQUIRE_API && !existingOrder) {
-          StorageService.createOrder(confirmation.order, false);
-        }
         BotBridgeService.sendOrder(confirmation.order, session, paymentMethod).catch((bridgeError) => {
           console.error('Failed to notify bot about confirmed payment:', bridgeError);
         });
@@ -212,7 +231,7 @@ export default function App() {
             role: orderUser?.role === 'admin' ? 'admin' : 'user',
             createdAt: String(orderUser?.createdAt || new Date().toISOString()),
           };
-          StorageService.setSession(fallbackUser);
+          writeSession(fallbackUser);
           setUser(fallbackUser);
         }
 
@@ -283,35 +302,15 @@ export default function App() {
       try {
         await handlePaymentReturn();
         await refreshApiHealth();
+        const remoteSettings = await ShopApiService.getState('settings');
+        setAdminSettings(remoteSettings);
         const remoteProducts = await ShopApiService.getProducts();
-        if (remoteProducts.length > 0) {
-          if (!REQUIRE_API) {
-            StorageService.saveProducts(remoteProducts);
-          }
-          setProducts(remoteProducts);
-          applyRoute(window.location.pathname, remoteProducts, session, window.location.search);
-          setApiOnline(true);
-          return;
-        }
-
-        // Bootstrap backend catalog from local seed only when local fallback mode is enabled.
-        if (!REQUIRE_API && localProducts.length > 0) {
-          await Promise.all(localProducts.map((product) => ShopApiService.upsertProduct(product)));
-          const seededProducts = await ShopApiService.getProducts();
-          if (seededProducts.length > 0) {
-            StorageService.saveProducts(seededProducts);
-            setProducts(seededProducts);
-            applyRoute(window.location.pathname, seededProducts, session, window.location.search);
-            setApiOnline(true);
-          }
-        }
+        setProducts(remoteProducts);
+        applyRoute(window.location.pathname, remoteProducts, session, window.location.search);
+        setApiOnline(true);
       } catch (error) {
         setApiOnline(false);
-        if (!REQUIRE_API) {
-          console.warn('Store API unavailable, using local product cache.', error);
-        } else {
-          console.error('Store API unavailable in required mode.', error);
-        }
+        console.error('Store API unavailable.', error);
       }
     })();
 
@@ -434,6 +433,7 @@ export default function App() {
   };
 
   const handleAuthComplete = (newUser: User) => {
+    writeSession(newUser);
     setUser(newUser);
     if (cart.length > 0) {
       setIsCheckoutOpen(true);
@@ -444,7 +444,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    StorageService.setSession(null);
+    writeSession(null);
     setUser(null);
     pushRoute('/', products, null);
     setCart([]);
@@ -454,18 +454,11 @@ export default function App() {
     setCart([]);
     setIsCheckoutOpen(false);
     if (updatedProducts && updatedProducts.length > 0) {
-      if (!REQUIRE_API) {
-        StorageService.saveProducts(updatedProducts);
-      }
       setProducts(updatedProducts);
     } else {
-      if (!REQUIRE_API) {
-        setProducts(StorageService.getProducts());
-      } else {
-        ShopApiService.getProducts()
-          .then((remoteProducts) => setProducts(remoteProducts))
-          .catch(() => setProducts([]));
-      }
+      ShopApiService.getProducts()
+        .then((remoteProducts) => setProducts(remoteProducts))
+        .catch(() => setProducts([]));
     }
     pushRoute('/vault', products, user);
   };
@@ -484,17 +477,8 @@ export default function App() {
         products={products}
         setProducts={(newProducts) => {
           if (typeof newProducts === 'function') {
-            setProducts((prev) => {
-              const updated = (newProducts as (prev: Product[]) => Product[])(prev);
-              if (!REQUIRE_API) {
-                StorageService.saveProducts(updated);
-              }
-              return updated;
-            });
+            setProducts((prev) => (newProducts as (prev: Product[]) => Product[])(prev));
             return;
-          }
-          if (!REQUIRE_API) {
-            StorageService.saveProducts(newProducts);
           }
           setProducts(newProducts);
         }}
@@ -553,9 +537,22 @@ export default function App() {
             <UserDashboard user={user} onLogout={handleLogout} onBrowse={() => pushRoute('/', products, user)} />
           </div>
         )}
+        {view === 'privacy' && (
+          <div className="animate-reveal">
+            <PrivacyPolicyPage onBack={() => pushRoute('/', products, user)} />
+          </div>
+        )}
+        {view === 'terms' && (
+          <div className="animate-reveal">
+            <ServiceTermsPage onBack={() => pushRoute('/', products, user)} />
+          </div>
+        )}
       </main>
 
-      <Footer />
+      <Footer
+        onOpenPrivacy={() => pushRoute('/privacy', products, user)}
+        onOpenTerms={() => pushRoute('/terms', products, user)}
+      />
       
       <Cart 
         isOpen={isCartOpen} 

@@ -2,9 +2,9 @@
 import React, { useEffect, useState } from 'react';
 import { X, ShieldCheck, Zap, CreditCard, Wallet, Bitcoin, CheckCircle2, ArrowRight, Shield } from 'lucide-react';
 import { CartItem, Product } from '../types';
-import { Order, StorageService, User } from '../services/storageService';
+import { Order, User } from '../services/storageService';
 import { BotBridgeService } from '../services/botBridgeService';
-import { REQUIRE_API, ShopApiService } from '../services/shopApiService';
+import { ShopApiService } from '../services/shopApiService';
 
 interface CheckoutProps {
   isOpen: boolean;
@@ -120,17 +120,11 @@ export const Checkout: React.FC<CheckoutProps> = ({ isOpen, onClose, items, curr
         };
 
         if (result.products && result.products.length > 0) {
-          if (!REQUIRE_API) {
-            StorageService.saveProducts(result.products);
-          }
           setUpdatedProducts(result.products);
         } else {
           setUpdatedProducts(undefined);
         }
 
-        if (!REQUIRE_API) {
-          StorageService.createOrder(finalOrder, false);
-        }
         BotBridgeService.sendOrder(finalOrder, currentUser, paymentMethod).catch((bridgeError) => {
           console.error('Failed to notify bot about completed order:', bridgeError);
         });

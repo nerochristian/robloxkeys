@@ -33,9 +33,9 @@ export const BRAND_CONFIG = {
   },
   links: {
     discord: "#",
-    support: "#",
-    privacy: "#",
-    terms: "#",
+    support: "https://discord.gg/NzJUttTa",
+    privacy: "/privacy",
+    terms: "/terms",
   },
   storage: {
     keyPrefix: "robloxkeys",

@@ -190,13 +190,19 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({ product, selectedT
             <div className="mb-10">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-[10px] font-black text-white/20 uppercase tracking-widest">Stock Status</span>
-                <span className="text-[10px] font-black text-[#22c55e] uppercase tracking-widest bg-[#22c55e]/10 px-2 py-1 rounded-md">
+                <span
+                  className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md ${
+                    isOutOfStock
+                      ? 'text-red-300 bg-red-500/10'
+                      : 'text-[#22c55e] bg-[#22c55e]/10'
+                  }`}
+                >
                   {isOutOfStock ? 'Empty' : `${currentStock} In Stock`}
                 </span>
               </div>
               <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
                 <div 
-                  className="h-full bg-[#22c55e] transition-all duration-1000" 
+                  className={`h-full transition-all duration-1000 ${isOutOfStock ? 'bg-red-500' : 'bg-[#22c55e]'}`}
                   style={{ width: `${Math.min(100, (currentStock / 50) * 100)}%` }}
                 ></div>
               </div>
