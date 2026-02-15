@@ -17,10 +17,12 @@ export const ProductTierPanel: React.FC<ProductTierPanelProps> = ({
 }) => {
   const tiers = useMemo(() => (product?.tiers || []).filter((tier) => typeof tier === 'object'), [product]);
   const [selectedTierId, setSelectedTierId] = useState<string>('');
+  const [hoveredTierId, setHoveredTierId] = useState<string>('');
 
   useEffect(() => {
     if (!isOpen) {
       setSelectedTierId('');
+      setHoveredTierId('');
       return;
     }
     if (tiers.length > 0) {
@@ -31,15 +33,16 @@ export const ProductTierPanel: React.FC<ProductTierPanelProps> = ({
   if (!isOpen || !product || tiers.length === 0) return null;
 
   const panelTitle = `${product.name}`;
+  const activeTierId = hoveredTierId || selectedTierId;
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 sm:p-8">
       <div
-        className="absolute inset-0 bg-black/85 opacity-0 [backdrop-filter:blur(0px)] [-webkit-backdrop-filter:blur(0px)] animate-[tierBackdropIn_380ms_cubic-bezier(0.22,1,0.36,1)_forwards]"
+        className="absolute inset-0 bg-black/85 opacity-0 [backdrop-filter:blur(0px)] [-webkit-backdrop-filter:blur(0px)] animate-[tierBackdropIn_620ms_cubic-bezier(0.22,1,0.36,1)_forwards]"
         onClick={onClose}
       />
 
-      <div className="relative w-full max-w-4xl rounded-2xl border border-white/10 bg-[#080a11] shadow-[0_0_80px_rgba(0,0,0,0.7)] opacity-0 translate-y-12 will-change-transform animate-[tierPanelIn_420ms_cubic-bezier(0.16,1,0.3,1)_forwards]">
+      <div className="relative w-full max-w-4xl rounded-2xl border border-white/10 bg-[#080a11] shadow-[0_0_80px_rgba(0,0,0,0.7)] opacity-0 translate-y-12 will-change-transform animate-[tierPanelIn_700ms_cubic-bezier(0.16,1,0.3,1)_80ms_forwards]">
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4 sm:px-7">
           <h2 className="text-2xl font-black tracking-tight text-white">{panelTitle}</h2>
           <button onClick={onClose} className="rounded-lg border border-white/20 p-2 text-white/60 hover:text-white">
@@ -50,10 +53,14 @@ export const ProductTierPanel: React.FC<ProductTierPanelProps> = ({
         <div className="max-h-[65vh] space-y-3 overflow-y-auto p-4 sm:p-6">
           {tiers.map((tier, index) => {
             const inStock = Number(tier.stock || 0) > 0;
-            const isSelected = selectedTierId === tier.id;
+            const isSelected = activeTierId === tier.id;
             return (
               <button
                 key={tier.id}
+                onMouseEnter={() => setHoveredTierId(tier.id)}
+                onMouseLeave={() => setHoveredTierId('')}
+                onFocus={() => setHoveredTierId(tier.id)}
+                onBlur={() => setHoveredTierId('')}
                 onClick={() => {
                   setSelectedTierId(tier.id);
                   onSelectTier(product, tier);

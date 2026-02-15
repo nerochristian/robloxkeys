@@ -44,24 +44,38 @@
       }
 
       @keyframes tierBackdropIn {
-        from {
+        0% {
           opacity: 0;
           backdrop-filter: blur(0px);
           -webkit-backdrop-filter: blur(0px);
         }
-        to {
+        35% {
+          opacity: 0.45;
+          backdrop-filter: blur(4px);
+          -webkit-backdrop-filter: blur(4px);
+        }
+        70% {
+          opacity: 0.8;
+          backdrop-filter: blur(9px);
+          -webkit-backdrop-filter: blur(9px);
+        }
+        100% {
           opacity: 1;
-          backdrop-filter: blur(12px);
-          -webkit-backdrop-filter: blur(12px);
+          backdrop-filter: blur(14px);
+          -webkit-backdrop-filter: blur(14px);
         }
       }
 
       @keyframes tierPanelIn {
-        from {
+        0% {
           opacity: 0;
-          transform: translateY(48px) scale(0.985);
+          transform: translateY(72px) scale(0.97);
         }
-        to {
+        60% {
+          opacity: 0.92;
+          transform: translateY(10px) scale(0.995);
+        }
+        100% {
           opacity: 1;
           transform: translateY(0) scale(1);
         }
