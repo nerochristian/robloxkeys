@@ -6,7 +6,7 @@ from ..utils.base_cog import BaseCog
 from ..utils.embeds import EmbedUtils
 from ..utils.constants import Emojis, Colors
 from ..utils.components_v2 import ComponentsV2, create_container, create_feature_list
-from ..services.sellauth import sellauth
+from ..services.store_api import store_api
 from ..utils.logger import logger
 
 class Shop(BaseCog):
@@ -14,7 +14,7 @@ class Shop(BaseCog):
         super().__init__(bot)
 
     async def product_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
-        products = await sellauth.get_products()
+        products = await store_api.get_products()
         if not products:
             return []
         
@@ -31,7 +31,7 @@ class Shop(BaseCog):
         await interaction.response.defer()
         
         try:
-            products = await sellauth.get_products()
+            products = await store_api.get_products()
             if not products:
                 await interaction.followup.send(embed=EmbedUtils.error("API Error", "Could not fetch products."))
                 return
@@ -88,7 +88,7 @@ class Shop(BaseCog):
         await interaction.response.defer()
         
         try:
-            product = await sellauth.get_product(product_id)
+            product = await store_api.get_product(product_id)
             if not product:
                 await interaction.followup.send(embed=EmbedUtils.error("Not Found", "Product not found."))
                 return

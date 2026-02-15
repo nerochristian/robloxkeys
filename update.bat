@@ -3,7 +3,7 @@ setlocal ENABLEDELAYEDEXPANSION
 
 cd /d "%~dp0"
 
-set "REPO_URL=https://github.com/nerochristian/bananashop.git"
+set "REPO_URL=https://github.com/nerochristian/robloxkeys"
 set "DEFAULT_BRANCH=main"
 
 echo ==========================================

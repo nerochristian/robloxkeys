@@ -20,7 +20,7 @@ class WebsiteBridgeServer:
     def __init__(self, bot: discord.Client):
         self.bot = bot
         self.host = os.getenv("BOT_API_HOST", "0.0.0.0")
-        port_value = os.getenv("BOT_API_PORT") or os.getenv("PORT") or "8080"
+        port_value = os.getenv("PORT") or os.getenv("BOT_API_PORT") or "8080"
         self.port = int(port_value)
         self.api_key = (os.getenv("BOT_API_KEY") or "").strip()
         self.api_key_header = (os.getenv("BOT_API_KEY_HEADER") or "x-api-key").strip().lower()

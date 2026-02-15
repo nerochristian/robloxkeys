@@ -12,6 +12,8 @@ interface ImportMetaEnv {
   readonly VITE_STORE_API_URL?: string;
   readonly VITE_STORE_API_PREFIX?: string;
   readonly VITE_STORE_API_KEY?: string;
+  readonly VITE_STORE_API_KEY_HEADER?: string;
+  readonly VITE_STORE_API_AUTH_SCHEME?: string;
   readonly VITE_STORE_API_TIMEOUT_MS?: string;
 }
 

@@ -3,12 +3,26 @@ import { Order, User } from './storageService';
 
 const STORE_API_BASE_URL = ((import.meta.env.VITE_STORE_API_URL as string | undefined) || '').trim().replace(/\/$/, '');
 const STORE_API_PREFIX = ((import.meta.env.VITE_STORE_API_PREFIX as string | undefined) || '/shop').trim() || '/shop';
-const STORE_API_KEY = (import.meta.env.VITE_STORE_API_KEY as string | undefined) || '';
+const STORE_API_KEY =
+  (import.meta.env.VITE_STORE_API_KEY as string | undefined) ||
+  (import.meta.env.VITE_BOT_API_KEY as string | undefined) ||
+  '';
+const STORE_API_KEY_HEADER =
+  ((import.meta.env.VITE_STORE_API_KEY_HEADER as string | undefined) ||
+    (import.meta.env.VITE_BOT_API_KEY_HEADER as string | undefined) ||
+    'x-api-key').toLowerCase();
+const STORE_API_AUTH_SCHEME =
+  (import.meta.env.VITE_STORE_API_AUTH_SCHEME as string | undefined) ||
+  (import.meta.env.VITE_BOT_API_AUTH_SCHEME as string | undefined) ||
+  '';
 const STORE_API_TIMEOUT_MS = Number(import.meta.env.VITE_STORE_API_TIMEOUT_MS || 10000);
 
 const buildHeaders = (): HeadersInit => {
   const headers: HeadersInit = { 'Content-Type': 'application/json' };
-  if (STORE_API_KEY) headers['x-api-key'] = STORE_API_KEY;
+  if (STORE_API_KEY) {
+    const value = STORE_API_AUTH_SCHEME ? `${STORE_API_AUTH_SCHEME} ${STORE_API_KEY}` : STORE_API_KEY;
+    headers[STORE_API_KEY_HEADER] = value;
+  }
   return headers;
 };
 

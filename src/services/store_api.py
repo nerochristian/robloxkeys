@@ -26,31 +26,26 @@ class StoreApiService:
     def _refresh_config(self) -> None:
         load_dotenv()
 
-        configured_base_url = (
-            os.getenv("STORE_API_BASE_URL")
-            or os.getenv("SELLAUTH_API_URL")
+        configured_base_url = (os.getenv("STORE_API_BASE_URL") or "").strip()
+        internal_base = (
+            os.getenv("BOT_INTERNAL_API_BASE_URL")
+            or os.getenv("RAILWAY_PRIVATE_DOMAIN")
             or ""
         ).strip()
+        port_value = (os.getenv("PORT") or os.getenv("BOT_API_PORT") or "8080").strip() or "8080"
+
         if configured_base_url:
-            self.base_url = configured_base_url
+            self.base_url = self._normalize_base_url(configured_base_url, default_port=port_value, default_path="/shop")
+        elif internal_base:
+            self.base_url = self._normalize_base_url(internal_base, default_port=port_value, default_path="/shop")
         else:
-            internal_base = (os.getenv("BOT_INTERNAL_API_BASE_URL") or "").strip()
-            if internal_base:
-                self.base_url = internal_base.rstrip("/")
-            else:
-                port_value = (os.getenv("BOT_API_PORT") or os.getenv("PORT") or "8080").strip() or "8080"
-                self.base_url = f"http://127.0.0.1:{port_value}/shop"
+            self.base_url = f"http://127.0.0.1:{port_value}/shop"
         self.api_key = (
             os.getenv("STORE_API_KEY")
-            or os.getenv("SELLAUTH_API_KEY")
             or os.getenv("BOT_API_KEY")
             or ""
         ).strip()
-        self.shop_id = (
-            os.getenv("STORE_API_SHOP_ID")
-            or os.getenv("SELLAUTH_SHOP_ID")
-            or ""
-        ).strip()
+        self.shop_id = (os.getenv("STORE_API_SHOP_ID") or "").strip()
         self.auth_header = os.getenv("STORE_API_AUTH_HEADER", "x-api-key").strip() or "x-api-key"
         self.auth_scheme = os.getenv("STORE_API_AUTH_SCHEME", "").strip()
         self.include_shop_id_in_path = os.getenv("STORE_API_INCLUDE_SHOP_ID_IN_PATH", "false").lower() in {"1", "true", "yes"}
@@ -144,6 +139,30 @@ class StoreApiService:
         headers.update(self.extra_headers)
         return headers
 
+    @staticmethod
+    def _normalize_base_url(raw_url: str, default_port: str, default_path: str = "/shop") -> str:
+        value = raw_url.strip().rstrip("/")
+        if not value:
+            return ""
+
+        if not value.startswith(("http://", "https://")):
+            value = f"http://{value}"
+
+        parsed = aiohttp.helpers.URL(value)
+        path = parsed.path.rstrip("/")
+        if not path:
+            path = default_path
+
+        # For local/private plain hostnames, append port when none is provided.
+        if parsed.port is None and parsed.scheme == "http" and parsed.host in {"127.0.0.1", "localhost"}:
+            value = f"{parsed.scheme}://{parsed.host}:{default_port}{path}"
+        elif parsed.port is None and parsed.scheme == "http" and "." not in (parsed.host or ""):
+            value = f"{parsed.scheme}://{parsed.host}:{default_port}{path}"
+        else:
+            value = f"{parsed.scheme}://{parsed.host}{f':{parsed.port}' if parsed.port else ''}{path}"
+
+        return value
+
     def _parse_extra_headers(self) -> Dict[str, str]:
         headers: Dict[str, str] = {}
 
@@ -218,5 +237,4 @@ class StoreApiService:
             return default
 
 
-sellauth = StoreApiService()
-store_api = sellauth
+store_api = StoreApiService()

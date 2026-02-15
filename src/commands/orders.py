@@ -6,7 +6,7 @@ from ..utils.base_cog import BaseCog
 from ..utils.embeds import EmbedUtils
 from ..utils.constants import Emojis, Colors
 from ..utils.components_v2 import create_container
-from ..services.sellauth import sellauth
+from ..services.store_api import store_api
 
 class Orders(BaseCog):
     def __init__(self, bot):
@@ -27,7 +27,7 @@ class Orders(BaseCog):
         await interaction.response.defer(ephemeral=True)
         
         # Try to get order
-        order = await sellauth.get_invoice(invoice_id)
+        order = await store_api.get_invoice(invoice_id)
         
         if not order:
             return await interaction.followup.send(
@@ -49,7 +49,7 @@ class Orders(BaseCog):
     async def methods(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
-        methods = await sellauth.get_payment_methods()
+        methods = await store_api.get_payment_methods()
         if not methods:
             return await interaction.followup.send(
                 embed=EmbedUtils.error("Unavailable", "Could not fetch payment methods from your store API."),
@@ -137,7 +137,7 @@ class Orders(BaseCog):
     async def invoice_lookup(self, interaction: discord.Interaction, invoice_id: str):
         await interaction.response.defer(ephemeral=True)
         
-        order = await sellauth.get_invoice(invoice_id)
+        order = await store_api.get_invoice(invoice_id)
         data = order.get("data") if isinstance(order, dict) else None
         if not data and isinstance(order, dict):
             data = order.get("invoice") or order
