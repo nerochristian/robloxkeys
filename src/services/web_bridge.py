@@ -1163,7 +1163,18 @@ class WebsiteBridgeServer:
         }
         if ssl_arg is not None:
             pool_kwargs["ssl"] = ssl_arg
-        self.pg_pool = await asyncpg.create_pool(**pool_kwargs)
+        try:
+            self.pg_pool = await asyncpg.create_pool(**pool_kwargs)
+        except Exception as exc:
+            if "CERTIFICATE_VERIFY_FAILED" not in str(exc):
+                raise
+
+            logger.warning("Shop storage DB certificate verification failed. Retrying with ssl verification disabled.")
+            retry_ctx = ssl.create_default_context()
+            retry_ctx.check_hostname = False
+            retry_ctx.verify_mode = ssl.CERT_NONE
+            pool_kwargs["ssl"] = retry_ctx
+            self.pg_pool = await asyncpg.create_pool(**pool_kwargs)
 
         assert self.pg_pool is not None
         async with self.pg_pool.acquire() as conn:

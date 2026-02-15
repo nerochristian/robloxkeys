@@ -3,6 +3,7 @@ from tortoise.models import Model
 import os
 import ssl
 from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode, unquote_plus
+from ..utils.logger import logger
 
 class GuildConfig(Model):
     id = fields.CharField(pk=True, max_length=20)
@@ -85,11 +86,10 @@ class BlockedUser(Model):
         table = "blocked_users"
 
 async def init_db():
-    db_url = (
-        os.getenv("SUPABASE_DATABASE_URL")
-        or os.getenv("DATABASE_URL")
-        or "sqlite://db.sqlite3"
-    )
+    supabase_db_url = os.getenv("SUPABASE_DATABASE_URL")
+    default_db_url = os.getenv("DATABASE_URL")
+    db_url_source = "SUPABASE_DATABASE_URL" if supabase_db_url else ("DATABASE_URL" if default_db_url else "sqlite")
+    db_url = supabase_db_url or default_db_url or "sqlite://db.sqlite3"
 
     # Supabase commonly provides postgresql:// URLs; normalize for parsing.
     if db_url.startswith("postgresql://"):
@@ -119,6 +119,13 @@ async def init_db():
             verify_ssl = False
         else:
             verify_ssl = not host.endswith(".pooler.supabase.com")
+
+        logger.info(
+            "DB init using %s host=%s ssl_verify=%s",
+            db_url_source,
+            host or "unknown",
+            verify_ssl,
+        )
 
         ssl_arg = None
         if wants_ssl:
@@ -169,22 +176,33 @@ async def init_db():
         if ssl_arg is not None:
             credentials["ssl"] = ssl_arg
 
-        await Tortoise.init(
-            config={
-                "connections": {
-                    "default": {
-                        "engine": "tortoise.backends.asyncpg",
-                        "credentials": credentials,
-                    }
-                },
-                "apps": {
-                    "models": {
-                        "models": ["src.services.database"],
-                        "default_connection": "default",
-                    }
-                },
-            }
-        )
+        config = {
+            "connections": {
+                "default": {
+                    "engine": "tortoise.backends.asyncpg",
+                    "credentials": credentials,
+                }
+            },
+            "apps": {
+                "models": {
+                    "models": ["src.services.database"],
+                    "default_connection": "default",
+                }
+            },
+        }
+
+        try:
+            await Tortoise.init(config=config)
+        except Exception as exc:
+            if "CERTIFICATE_VERIFY_FAILED" not in str(exc):
+                raise
+
+            logger.warning("DB certificate verification failed. Retrying with ssl verification disabled.")
+            retry_ctx = ssl.create_default_context()
+            retry_ctx.check_hostname = False
+            retry_ctx.verify_mode = ssl.CERT_NONE
+            credentials["ssl"] = retry_ctx
+            await Tortoise.init(config=config)
     else:
         await Tortoise.init(
             db_url=db_url,
