@@ -42,11 +42,8 @@ if errorlevel 1 (
   git remote set-url origin "%REPO_URL%"
 )
 
-for /f %%B in ('git branch --show-current') do set "CURRENT_BRANCH=%%B"
-if not defined CURRENT_BRANCH (
-  set "CURRENT_BRANCH=%DEFAULT_BRANCH%"
-  git checkout -B "%CURRENT_BRANCH%" >nul 2>&1
-)
+set "CURRENT_BRANCH=%DEFAULT_BRANCH%"
+git checkout -B "%CURRENT_BRANCH%" >nul 2>&1
 
 echo Current branch: %CURRENT_BRANCH%
 echo.
