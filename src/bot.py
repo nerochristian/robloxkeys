@@ -1,4 +1,5 @@
 import discord
+from discord import app_commands
 from discord.ext import commands
 import os
 import sys
@@ -109,22 +110,51 @@ class RobloxKeysBot(commands.Bot):
 
     async def sync_app_commands(self):
         """
-        Sync application commands globally on startup.
-        Clear guild-specific commands to avoid duplicate entries.
+        Sync application commands to guilds for immediate availability,
+        then sync globally.
         """
-        for guild in self.guilds:
+        target_guild_id = (os.getenv("DISCORD_GUILD_ID") or os.getenv("SYNC_GUILD_ID") or "").strip()
+        guild_targets = []
+
+        if target_guild_id.isdigit():
+            guild = self.get_guild(int(target_guild_id))
+            if guild:
+                guild_targets = [guild]
+            else:
+                logger.warning(f"{Emojis.WARNING} Configured guild {target_guild_id} not found; falling back to all guilds.")
+                guild_targets = list(self.guilds)
+        else:
+            guild_targets = list(self.guilds)
+
+        for guild in guild_targets:
             try:
-                self.tree.clear_commands(guild=guild)
-                cleared = await self.tree.sync(guild=guild)
-                logger.info(f"{Emojis.INFO} Cleared guild commands for {guild.id} ({len(cleared)} remaining).")
+                self.tree.copy_global_to(guild=guild)
+                guild_synced = await self.tree.sync(guild=guild)
+                logger.info(f"{Emojis.INFO} Synced {len(guild_synced)} commands to guild {guild.id}.")
             except Exception as e:
-                logger.error(f"{Emojis.ERROR} Guild command cleanup failed for {guild.id}: {e}")
+                logger.error(f"{Emojis.ERROR} Guild command sync failed for {guild.id}: {e}")
 
         try:
             global_synced = await self.tree.sync()
             logger.info(f"{Emojis.INFO} Synced {len(global_synced)} application commands globally.")
         except Exception as e:
             logger.error(f"{Emojis.ERROR} Global command sync failed: {e}")
+
+    async def on_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        original = getattr(error, "original", error)
+        logger.error(f"App command error: {original}")
+
+        message = f"{Emojis.ERROR} Command failed: {original}"
+        if interaction.response.is_done():
+            try:
+                await interaction.followup.send(message, ephemeral=True)
+            except Exception:
+                pass
+            return
+        try:
+            await interaction.response.send_message(message, ephemeral=True)
+        except Exception:
+            pass
 
     async def close(self):
         if self.website_bridge is not None:

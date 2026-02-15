@@ -97,6 +97,7 @@ class WebsiteBridgeServer:
         self.app.router.add_post("/api/bot/order", self.order)
         self.app.router.add_get("/shop/health", self.shop_health)
         self.app.router.add_get("/shop/products", self.shop_products)
+        self.app.router.add_get("/shop/products/{product_id}", self.shop_get_product)
         self.app.router.add_get("/shop/invoices/{invoice_id}", self.shop_get_invoice)
         self.app.router.add_get("/shop/orders", self.shop_orders)
         self.app.router.add_get("/shop/state/{state_key}", self.shop_get_state)
@@ -260,6 +261,24 @@ class WebsiteBridgeServer:
         products = [self._public_product(product) for product in await self._load_products()]
         return web.json_response({"ok": True, "products": products})
 
+    async def shop_get_product(self, request: web.Request):
+        product_id = str(request.match_info.get("product_id", "")).strip()
+        if not product_id:
+            return web.json_response({"ok": False, "message": "product id is required"}, status=400)
+
+        product_id_lower = product_id.lower()
+        products = await self._load_products()
+        for product in products:
+            if not isinstance(product, dict):
+                continue
+            row_id = str(product.get("id", "")).strip()
+            row_path = str(product.get("urlPath", "")).strip().lower()
+            if row_id == product_id or row_id.lower() == product_id_lower or (row_path and row_path == product_id_lower):
+                public_product = self._public_product(product)
+                return web.json_response({"ok": True, "product": public_product, "data": public_product})
+
+        return web.json_response({"ok": False, "message": "product not found"}, status=404)
+
     async def shop_get_invoice(self, request: web.Request):
         invoice_id = str(request.match_info.get("invoice_id", "")).strip()
         if not invoice_id:
@@ -410,6 +429,29 @@ class WebsiteBridgeServer:
         return web.json_response({"ok": True, "methods": methods})
 
     async def shop_admin_summary(self, request: web.Request):
+        products_raw = await self._load_products()
+        product_name_by_id: dict[str, str] = {}
+        tier_name_by_key: dict[tuple[str, str], str] = {}
+        for product in products_raw:
+            if not isinstance(product, dict):
+                continue
+            pid = str(product.get("id") or "").strip()
+            if not pid:
+                continue
+            pname = str(product.get("name") or "").strip()
+            if pname:
+                product_name_by_id[pid] = pname
+
+            tiers = product.get("tiers", [])
+            if isinstance(tiers, list):
+                for tier in tiers:
+                    if not isinstance(tier, dict):
+                        continue
+                    tid = str(tier.get("id") or "").strip()
+                    tname = str(tier.get("name") or "").strip()
+                    if tid and tname:
+                        tier_name_by_key[(pid, tid)] = tname
+
         orders_raw = await self._load_orders()
         orders: list[dict[str, Any]] = []
         customer_map: dict[str, dict[str, Any]] = {}
@@ -490,7 +532,15 @@ class WebsiteBridgeServer:
                 item_id = str(item.get("productId") or item.get("id") or "").strip()
                 if item_id and "::" in item_id:
                     item_id = item_id.split("::", 1)[0].strip()
-                name = str(item.get("name") or item_id or "Unknown Product").strip()
+                tier_id = str(item.get("tierId") or "").strip()
+
+                canonical_name = product_name_by_id.get(item_id, "").strip() if item_id else ""
+                if canonical_name and tier_id:
+                    tier_name = tier_name_by_key.get((item_id, tier_id), "").strip()
+                    if tier_name:
+                        canonical_name = f"{canonical_name} ({tier_name})"
+
+                name = (canonical_name or str(item.get("name") or item_id or "Unknown Product")).strip()
                 item_price = self._to_float(item.get("price"), default=0.0) or 0.0
 
                 bucket_key = item_id or name

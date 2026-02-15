@@ -34,9 +34,12 @@ export const ProductTierPanel: React.FC<ProductTierPanelProps> = ({
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 sm:p-8">
-      <div className="absolute inset-0 bg-black/85 backdrop-blur-md" onClick={onClose} />
+      <div
+        className="absolute inset-0 bg-black/85 opacity-0 [backdrop-filter:blur(0px)] [-webkit-backdrop-filter:blur(0px)] animate-[tierBackdropIn_380ms_cubic-bezier(0.22,1,0.36,1)_forwards]"
+        onClick={onClose}
+      />
 
-      <div className="relative w-full max-w-4xl rounded-2xl border border-white/10 bg-[#080a11] shadow-[0_0_80px_rgba(0,0,0,0.7)]">
+      <div className="relative w-full max-w-4xl rounded-2xl border border-white/10 bg-[#080a11] shadow-[0_0_80px_rgba(0,0,0,0.7)] opacity-0 translate-y-12 will-change-transform animate-[tierPanelIn_420ms_cubic-bezier(0.16,1,0.3,1)_forwards]">
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4 sm:px-7">
           <h2 className="text-2xl font-black tracking-tight text-white">{panelTitle}</h2>
           <button onClick={onClose} className="rounded-lg border border-white/20 p-2 text-white/60 hover:text-white">

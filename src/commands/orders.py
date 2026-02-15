@@ -56,7 +56,9 @@ class Orders(BaseCog):
                 ephemeral=True,
             )
 
-        if isinstance(methods, dict):
+        if isinstance(methods, dict) and any(k in methods for k in ("card", "paypal", "crypto")):
+            data = methods
+        elif isinstance(methods, dict):
             data = (
                 methods.get("data")
                 or methods.get("payment_methods")
@@ -78,14 +80,21 @@ class Orders(BaseCog):
             )
 
         method_names = []
-        for item in data if isinstance(data, list) else [data]:
-            if isinstance(item, str):
-                method_names.append(item)
-                continue
-            if isinstance(item, dict):
-                name = item.get("name") or item.get("title") or item.get("method") or item.get("type")
-                if name:
-                    method_names.append(str(name))
+        if isinstance(data, dict) and any(k in data for k in ("card", "paypal", "crypto")):
+            labels = {"card": "Card", "paypal": "PayPal", "crypto": "Crypto"}
+            for key, meta in data.items():
+                if isinstance(meta, dict) and not meta.get("enabled", False):
+                    continue
+                method_names.append(labels.get(str(key).lower(), str(key).title()))
+        else:
+            for item in data if isinstance(data, list) else [data]:
+                if isinstance(item, str):
+                    method_names.append(item)
+                    continue
+                if isinstance(item, dict):
+                    name = item.get("name") or item.get("title") or item.get("method") or item.get("type")
+                    if name:
+                        method_names.append(str(name))
 
         if not method_names:
             return await interaction.followup.send(

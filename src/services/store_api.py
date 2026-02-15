@@ -63,13 +63,21 @@ class StoreApiService:
             "coupons": os.getenv("STORE_API_COUPONS_ENDPOINT", "coupons"),
         }
 
-    async def _request(self, method: str, endpoint: str, data: Optional[Dict[str, Any]] = None) -> Any:
+    async def _request(
+        self,
+        method: str,
+        endpoint: str,
+        data: Optional[Dict[str, Any]] = None,
+        _base_url_override: Optional[str] = None,
+        _allow_local_fallback: bool = True,
+    ) -> Any:
         self._refresh_config()
-        if not self.base_url:
+        base_url = (_base_url_override or self.base_url).strip()
+        if not base_url:
             logger.warning("STORE_API_BASE_URL is not configured.")
             return None
 
-        url = self._build_url(endpoint)
+        url = self._build_url(endpoint, base_url)
         headers = self._build_headers()
         timeout = aiohttp.ClientTimeout(total=self.timeout_seconds)
 
@@ -113,17 +121,40 @@ class StoreApiService:
                 return None
         except Exception as exc:
             logger.error(f"Store API request failed ({method} {url}): {exc}")
+            local_url = self._local_base_url()
+            if (
+                _allow_local_fallback
+                and local_url
+                and base_url.rstrip("/") != local_url.rstrip("/")
+            ):
+                logger.warning(
+                    "Store API request failed via %s. Retrying via local bridge %s.",
+                    base_url,
+                    local_url,
+                )
+                return await self._request(
+                    method,
+                    endpoint,
+                    data=data,
+                    _base_url_override=local_url,
+                    _allow_local_fallback=False,
+                )
             return None
 
-    def _build_url(self, endpoint: str) -> str:
+    def _build_url(self, endpoint: str, base_url: Optional[str] = None) -> str:
         if endpoint.startswith("http://") or endpoint.startswith("https://"):
             return endpoint
 
-        parts = [self.base_url.rstrip("/")]
+        root = (base_url or self.base_url).rstrip("/")
+        parts = [root]
         if self.include_shop_id_in_path and self.shop_id:
             parts.append(self.shop_id)
         parts.append(endpoint.lstrip("/"))
         return "/".join(parts)
+
+    def _local_base_url(self) -> str:
+        port_value = (os.getenv("PORT") or os.getenv("BOT_API_PORT") or "8080").strip() or "8080"
+        return f"http://127.0.0.1:{port_value}/shop"
 
     def _build_headers(self) -> Dict[str, str]:
         headers = {"Content-Type": "application/json"}
@@ -201,19 +232,76 @@ class StoreApiService:
             return template
 
     async def get_products(self):
-        return await self._request("GET", self._endpoint("products"))
+        payload = await self._request("GET", self._endpoint("products"))
+        if isinstance(payload, list):
+            return payload
+        if isinstance(payload, dict):
+            for key in ("products", "data", "result", "items"):
+                value = payload.get(key)
+                if isinstance(value, list):
+                    return value
+                if isinstance(value, dict):
+                    nested = value.get("products") or value.get("items") or value.get("data")
+                    if isinstance(nested, list):
+                        return nested
+        return []
 
     async def get_product(self, product_id: str):
-        return await self._request("GET", self._endpoint("product", product_id=product_id))
+        endpoint = self._endpoint("product", product_id=product_id)
+        payload = await self._request("GET", endpoint)
+        if isinstance(payload, dict):
+            for key in ("product", "data", "result", "item"):
+                value = payload.get(key)
+                if isinstance(value, dict):
+                    return value
+            if payload.get("id") is not None:
+                return payload
+
+        products = await self.get_products()
+        for item in products:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("id", "")).strip() == str(product_id).strip():
+                return item
+            if str(item.get("urlPath", "")).strip().lower() == str(product_id).strip().lower():
+                return item
+        return None
 
     async def get_invoice(self, invoice_id: str):
-        return await self._request("GET", self._endpoint("invoice", invoice_id=invoice_id))
+        payload = await self._request("GET", self._endpoint("invoice", invoice_id=invoice_id))
+        if isinstance(payload, dict):
+            for key in ("invoice", "data", "result"):
+                value = payload.get(key)
+                if isinstance(value, dict):
+                    return value
+            if payload.get("id") is not None:
+                return payload
+        return None
 
     async def validate_license(self, key: str):
         return await self._request("POST", self._endpoint("validate_license"), {"key": key})
 
     async def get_payment_methods(self):
-        return await self._request("GET", self._endpoint("payment_methods"))
+        payload = await self._request("GET", self._endpoint("payment_methods"))
+        if isinstance(payload, dict):
+            methods = payload.get("methods") or payload.get("payment_methods") or payload.get("data")
+            if isinstance(methods, dict):
+                return methods
+            if isinstance(methods, list):
+                mapped: Dict[str, Dict[str, Any]] = {}
+                for item in methods:
+                    if isinstance(item, dict):
+                        name = str(item.get("name") or item.get("method") or item.get("type") or "").strip().lower()
+                        if name:
+                            mapped[name] = {
+                                "enabled": bool(item.get("enabled", True)),
+                                "automated": bool(item.get("automated", False)),
+                            }
+                    elif isinstance(item, str):
+                        mapped[item.lower()] = {"enabled": True, "automated": False}
+                if mapped:
+                    return mapped
+        return payload
 
     async def get_analytics(self, timeframe: str = "30d"):
         endpoint = self._endpoint("analytics")

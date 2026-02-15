@@ -19,10 +19,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onView }) => 
   const isLowStock = !isOutOfStock && effectiveStock <= 5;
   const stockLabel = isOutOfStock ? 'Out of Stock' : isLowStock ? 'Low Stock' : 'In Stock';
   const stockLabelClass = isOutOfStock
-    ? 'text-red-400'
+    ? 'text-red-300 border-red-500/35 bg-red-500/10 shadow-[0_0_18px_rgba(239,68,68,0.2)]'
     : isLowStock
-    ? 'text-orange-300'
-    : 'text-[#22c55e]';
+    ? 'text-orange-200 border-orange-400/35 bg-orange-500/10 shadow-[0_0_18px_rgba(251,146,60,0.2)]'
+    : 'text-[#86efac] border-emerald-400/35 bg-emerald-500/10 shadow-[0_0_18px_rgba(34,197,94,0.2)]';
+  const stockDotClass = isOutOfStock
+    ? 'bg-red-400'
+    : isLowStock
+    ? 'bg-orange-300'
+    : 'bg-[#22c55e]';
   const badgeIcon = (product.cardBadgeIcon || 'grid').toLowerCase();
   const badgeLabel = (product.cardBadgeLabel || (product.type === ServiceType.BUNDLE ? 'BUNDLE' : 'ACCOUNT')).trim();
   
@@ -64,11 +69,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onView }) => 
         </div>
         
         {/* Central Logo Circle */}
-        <div className="w-20 h-20 bg-black/20 backdrop-blur-2xl rounded-full flex items-center justify-center border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] transform transition-all duration-700 group-hover:scale-125 group-hover:rotate-[15deg]">
+        <div className="w-28 h-28 md:w-32 md:h-32 bg-black/20 backdrop-blur-2xl rounded-full flex items-center justify-center border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] transform transition-all duration-700 group-hover:scale-125 group-hover:rotate-[15deg]">
            <img 
             src={product.image} 
             alt={product.name} 
-            className="w-12 h-12 object-contain opacity-90 drop-shadow-2xl" 
+            className="w-16 h-16 md:w-20 md:h-20 object-contain opacity-95 drop-shadow-2xl" 
             onError={(e) => {
               (e.target as HTMLImageElement).src = 'https://api.dicebear.com/7.x/initials/svg?seed=' + product.name;
             }}
@@ -81,9 +86,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onView }) => 
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1">
             <h3 className="text-xl font-black text-white tracking-tight leading-tight mb-1 group-hover:text-[#facc15] transition-colors">{product.name}</h3>
-            <p className={`text-[10px] font-black uppercase tracking-widest ${stockLabelClass}`}>
-              {stockLabel}
-            </p>
+            <div className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-widest transition-all ${stockLabelClass}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${stockDotClass}`}></span>
+              <span>{stockLabel}</span>
+            </div>
           </div>
           <div className="text-right ml-4">
              <p className="text-[9px] font-black text-white/30 uppercase tracking-widest">{isTiered ? 'Range' : 'Starts at'}</p>
