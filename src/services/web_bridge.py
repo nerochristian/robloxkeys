@@ -1303,12 +1303,17 @@ class WebsiteBridgeServer:
         explicit_ssl = str(query.pop("ssl", "")).strip().lower()
         host = (parsed.hostname or "").lower()
 
-        wants_ssl = (
+        force_disable_ssl = sslmode in {"disable"} or explicit_ssl in {"0", "false", "no", "disable"}
+        force_enable_ssl = (
             sslmode in {"require", "verify-ca", "verify-full"}
             or explicit_ssl in {"1", "true", "yes", "require", "verify-ca", "verify-full"}
-            or host.endswith(".pooler.supabase.com")
-            or host.endswith(".supabase.co")
         )
+        if force_disable_ssl:
+            wants_ssl = False
+        elif force_enable_ssl:
+            wants_ssl = True
+        else:
+            wants_ssl = host.endswith(".pooler.supabase.com") or host.endswith(".supabase.co")
 
         verify_override = str(os.getenv("DB_SSL_VERIFY", "")).strip().lower()
         if verify_override in {"1", "true", "yes"}:
