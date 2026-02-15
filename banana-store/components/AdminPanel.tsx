@@ -138,10 +138,10 @@ const NAV_GROUPS: Array<{ id: 'overview' | 'commerce' | 'operations' | 'system';
 ];
 
 const cardClass = 'bg-[#0b0b0b]/95 border border-[#facc15]/20 rounded-2xl p-5 shadow-[0_10px_30px_rgba(0,0,0,0.35)] transition-all hover:border-[#facc15]/35';
-const fieldClass = 'w-full bg-[#0a0a0a] border border-[#facc15]/20 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-[#facc15]/35 focus:border-[#facc15]/35';
-const fieldCompactClass = 'bg-[#0a0a0a] border border-[#facc15]/20 rounded-xl px-2 py-1.5 text-sm text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-[#facc15]/35 focus:border-[#facc15]/35';
-const primaryButtonClass = 'bg-[#facc15] text-black hover:bg-[#eab308] rounded-xl px-4 py-2.5 font-semibold transition-all active:scale-[0.98]';
-const subtleButtonClass = 'rounded-xl bg-white/10 border border-white/15 px-3 py-2 text-sm text-white/90 hover:bg-white/15 transition-all active:scale-[0.98]';
+const fieldClass = 'w-full rounded-xl border border-white/15 bg-[#0f1219]/90 px-3 py-2.5 text-sm text-white placeholder:text-white/35 transition-all focus:outline-none focus:ring-2 focus:ring-[#facc15]/35 focus:border-[#facc15]/45';
+const fieldCompactClass = 'rounded-xl border border-white/15 bg-[#0f1219]/90 px-2 py-1.5 text-sm text-white placeholder:text-white/35 transition-all focus:outline-none focus:ring-2 focus:ring-[#facc15]/35 focus:border-[#facc15]/45';
+const primaryButtonClass = 'rounded-xl bg-[#facc15] px-4 py-2.5 font-semibold text-black transition-all hover:-translate-y-0.5 hover:bg-[#eab308] active:scale-[0.98]';
+const subtleButtonClass = 'rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm text-white/90 transition-all hover:-translate-y-0.5 hover:bg-white/15 active:scale-[0.98]';
 const mutedPanelClass = 'rounded-xl border border-[#facc15]/15 bg-[#090909]/95';
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, settings, setSettings, onLogout }) => {
@@ -1448,25 +1448,34 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
       )}
 
       {openEditor && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/88 p-3 backdrop-blur-md sm:p-4">
-          <div className="relative w-full max-w-6xl overflow-hidden rounded-2xl border border-[#facc15]/25 bg-[#0b0b0b] shadow-[0_26px_80px_rgba(0,0,0,0.65)]">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(250,204,21,0.1),transparent_50%),radial-gradient(circle_at_bottom_left,rgba(250,204,21,0.07),transparent_42%)]" />
-            <div className="relative flex items-center justify-between border-b border-[#facc15]/20 p-4 sm:p-5">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/82 p-2 backdrop-blur-xl sm:p-4">
+          <div className="relative w-full max-w-[1320px] overflow-hidden rounded-3xl border border-white/15 bg-[#090909] shadow-[0_30px_100px_rgba(0,0,0,0.72)]">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_10%_0%,rgba(250,204,21,0.13),transparent_34%),radial-gradient(circle_at_90%_12%,rgba(59,130,246,0.08),transparent_32%),radial-gradient(circle_at_bottom_left,rgba(250,204,21,0.06),transparent_38%)]" />
+            <div className="relative border-b border-white/10 bg-gradient-to-b from-white/[0.06] to-transparent p-4 sm:p-5">
+              <div className="flex items-center justify-between gap-3">
               <div>
-                <h3 className="text-2xl font-black">{draft.name ? 'Edit Product' : 'Create Product'}</h3>
-                <div className="text-xs uppercase tracking-[0.18em] text-yellow-200/60">Catalog Configuration</div>
+                  <h3 className="text-3xl font-black tracking-tight text-white">{draft.name ? 'Edit Product' : 'Create Product'}</h3>
+                  <div className="mt-1 text-[11px] uppercase tracking-[0.2em] text-yellow-200/65">Catalog Configuration</div>
               </div>
               <div className="flex items-center gap-2">
-                <button type="button" onClick={() => setOpenEditor(false)} className={subtleButtonClass}>Cancel</button>
-                <button type="submit" form="admin-product-editor-form" className={`${primaryButtonClass} inline-flex items-center gap-2`}><Save className="h-4 w-4" /> Save</button>
-                <button onClick={() => setOpenEditor(false)} className="rounded-lg p-2 hover:bg-white/10"><X className="h-5 w-5" /></button>
+                  <button type="button" onClick={() => setOpenEditor(false)} className={subtleButtonClass}>Cancel</button>
+                  <button type="submit" form="admin-product-editor-form" className={`${primaryButtonClass} inline-flex items-center gap-2`}><Save className="h-4 w-4" /> Save</button>
+                  <button onClick={() => setOpenEditor(false)} className="rounded-lg p-2 hover:bg-white/10"><X className="h-5 w-5" /></button>
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-white/65">
+                <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1">Basics</span>
+                <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1">Pricing</span>
+                <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1">Media</span>
+                <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1">Tiers</span>
+                <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1">Display</span>
               </div>
             </div>
-            <form id="admin-product-editor-form" onSubmit={saveProduct} className="relative grid max-h-[82vh] grid-cols-1 gap-4 overflow-y-auto p-4 sm:p-5 md:grid-cols-2">
-              <div className="md:col-span-2 rounded-xl border border-[#facc15]/25 bg-[#facc15]/10 px-3 py-2 text-xs text-yellow-100/85">
+            <form id="admin-product-editor-form" onSubmit={saveProduct} className="relative grid max-h-[82vh] grid-cols-1 gap-4 overflow-y-auto p-4 sm:p-6 xl:grid-cols-12">
+              <div className="xl:col-span-12 rounded-2xl border border-[#facc15]/25 bg-[#facc15]/10 px-4 py-2.5 text-xs text-yellow-100/85">
                 Fill sections top to bottom: basics, pricing, media, then tiers. If a product has tiers, add stock per tier with <span className="font-semibold text-[#facc15]">Add Keys</span> in the Products table.
               </div>
-              <div className="md:col-span-2 rounded-xl border border-[#facc15]/20 bg-[#090909] p-4">
+              <div className="xl:col-span-8 rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.015))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07)]">
                 <div className="mb-1 text-sm font-black tracking-wide text-white">1. Basics</div>
                 <div className="mb-3 text-xs text-yellow-200/70">Core product identity and storefront labels.</div>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -1514,7 +1523,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
                 </div>
               </div>
 
-              <div className="md:col-span-2 rounded-xl border border-[#facc15]/20 bg-[#090909] p-4">
+              <div className="xl:col-span-8 rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.015))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07)]">
                 <div className="mb-1 text-sm font-black tracking-wide text-white">2. Pricing & Visibility</div>
                 <div className="mb-3 text-xs text-yellow-200/70">Set pricing, stock mode, and who can see this product.</div>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -1557,7 +1566,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
                 </div>
               </div>
 
-              <div className="md:col-span-2 rounded-xl border border-[#facc15]/20 bg-[#090909] p-4">
+              <div className="xl:col-span-8 rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.015))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07)]">
                 <div className="mb-1 text-sm font-black tracking-wide text-white">3. Media & Content</div>
                 <div className="mb-3 text-xs text-yellow-200/70">Card/banner images plus product highlights and long description.</div>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -1580,7 +1589,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
                 </div>
               </div>
 
-              <div className="md:col-span-2 rounded-xl border border-[#facc15]/20 bg-[#090909] p-4">
+              <div className="xl:col-span-8 rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.015))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07)]">
                 <div className="mb-3 flex items-center justify-between">
                   <div>
                     <div className="text-sm font-black tracking-wide text-white">4. Product Tiers</div>
@@ -1685,7 +1694,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
                 </div>
               </div>
 
-              <div className="md:col-span-2 rounded-xl border border-[#facc15]/20 bg-[#090909] p-4">
+              <div className="xl:col-span-4 xl:self-start xl:sticky xl:top-3 rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.015))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07)]">
                 <div className="mb-1 text-sm font-black tracking-wide text-white">5. Display & Delivery Options</div>
                 <div className="mb-2 text-xs text-yellow-200/70">Control badges, counters, and delivery behavior.</div>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -1699,7 +1708,34 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
                 </div>
               </div>
 
-              <div className="md:col-span-2 flex flex-wrap items-center justify-between gap-2 border-t border-[#facc15]/20 bg-[#0b0b0b]/85 pt-3 backdrop-blur-sm">
+              <div className="xl:col-span-4 rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07)]">
+                <div className="mb-1 text-sm font-black tracking-wide text-white">Live Summary</div>
+                <div className="mb-3 text-xs text-yellow-200/70">This updates as you edit fields.</div>
+                <div className="space-y-2 text-xs">
+                  <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
+                    <span className="text-white/70">Mode</span>
+                    <span className="font-bold text-white">{tierDrafts.length > 0 ? 'Tiered product' : 'Single product'}</span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
+                    <span className="text-white/70">Tier Count</span>
+                    <span className="font-bold text-white">{tierDrafts.length}</span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
+                    <span className="text-white/70">Effective Stock</span>
+                    <span className="font-bold text-white">{tierDrafts.length > 0 ? tierDrafts.reduce((sum, tier) => sum + Number(tier.stock || 0), 0) : Number(draft.stock || 0)}</span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
+                    <span className="text-white/70">Price Range</span>
+                    <span className="font-bold text-white">
+                      {tierDrafts.length > 0
+                        ? `$${Math.min(...tierDrafts.map((tier) => Number(tier.price || 0))).toFixed(2)} - $${Math.max(...tierDrafts.map((tier) => Number(tier.price || 0))).toFixed(2)}`
+                        : `$${Number(draft.price || 0).toFixed(2)}`}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="xl:col-span-12 sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/10 bg-[#0d0d0d]/92 px-3 py-3 backdrop-blur-xl">
                 <div className="text-xs text-yellow-200/70">
                   Mode: <span className="font-semibold text-white">{tierDrafts.length > 0 ? 'Tiered product' : 'Single product'}</span>
                 </div>

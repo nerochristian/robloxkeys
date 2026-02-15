@@ -7,7 +7,6 @@ import { ProductTierPanel } from './components/ProductTierPanel';
 import { Cart } from './components/Cart';
 import { ChatBot } from './components/ChatBot';
 import { Footer } from './components/Footer';
-import { LoadingScreen } from './components/LoadingScreen';
 import { PrivacyPolicyPage } from './components/PrivacyPolicyPage';
 import { ServiceTermsPage } from './components/ServiceTermsPage';
 import { Auth } from './components/Auth';
@@ -119,7 +118,6 @@ export default function App() {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [tierPanelProduct, setTierPanelProduct] = useState<Product | null>(null);
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
-  const [isBooting, setIsBooting] = useState(true);
   const [adminSettings, setAdminSettings] = useState<AdminSettings>({
     storeName: BRAND_CONFIG.identity.storeName,
     currency: 'USD',
@@ -313,8 +311,6 @@ export default function App() {
       } catch (error) {
         setApiOnline(false);
         console.error('Store API unavailable.', error);
-      } finally {
-        setIsBooting(false);
       }
     })();
 
@@ -468,10 +464,6 @@ export default function App() {
   };
 
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-
-  if (isBooting) {
-    return <LoadingScreen />;
-  }
 
   // Authentication Required View
   if (view === 'auth') {
