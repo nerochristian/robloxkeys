@@ -120,6 +120,18 @@ export interface AdminSummary {
   topProducts: AdminSummaryTopProduct[];
 }
 
+export type AuthLoginResult =
+  | {
+      requires2fa: true;
+      otpToken: string;
+      message: string;
+      expiresInSeconds: number;
+    }
+  | {
+      requires2fa: false;
+      user: User;
+    };
+
 export type ShopStateKey =
   | 'settings'
   | 'users'
@@ -288,15 +300,55 @@ export const ShopApiService = {
     return payload.state;
   },
 
-  async authLogin(email: string, password: string): Promise<User> {
+  async authLogin(email: string, password: string): Promise<AuthLoginResult> {
     const response = await withTimeout(resolvePath('/auth/login'), {
       method: 'POST',
       headers: buildHeaders(),
       body: JSON.stringify({ email, password }),
     });
+    const payload = await response.json().catch(() => ({})) as {
+      ok?: boolean;
+      message?: string;
+      user?: User;
+      requires2fa?: boolean;
+      otpToken?: string;
+      expiresInSeconds?: number;
+    };
+    if (!response.ok) {
+      throw new Error(payload.message || `Login failed (${response.status})`);
+    }
+
+    if (payload.requires2fa) {
+      if (!payload.otpToken) {
+        throw new Error('OTP session was not provided by the server');
+      }
+      return {
+        requires2fa: true,
+        otpToken: payload.otpToken,
+        message: payload.message || 'Verification code sent',
+        expiresInSeconds: Number(payload.expiresInSeconds || 300),
+      };
+    }
+
+    if (!payload.user) {
+      throw new Error('User session was not returned by the server');
+    }
+
+    return {
+      requires2fa: false,
+      user: payload.user,
+    };
+  },
+
+  async authVerifyOtp(otpToken: string, code: string): Promise<User> {
+    const response = await withTimeout(resolvePath('/auth/verify-otp'), {
+      method: 'POST',
+      headers: buildHeaders(),
+      body: JSON.stringify({ otpToken, code }),
+    });
     const payload = await response.json().catch(() => ({})) as { ok?: boolean; message?: string; user?: User };
     if (!response.ok || !payload.user) {
-      throw new Error(payload.message || `Login failed (${response.status})`);
+      throw new Error(payload.message || `OTP verification failed (${response.status})`);
     }
     return payload.user;
   },

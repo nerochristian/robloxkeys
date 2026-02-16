@@ -1,6 +1,5 @@
-
-import React, { useState } from 'react';
-import { Mail, Lock, UserPlus, ArrowLeft, LayoutGrid, LogIn, ShieldCheck } from 'lucide-react';
+﻿import React, { useMemo, useState } from 'react';
+import { Mail, Lock, UserPlus, ArrowLeft, LayoutGrid, LogIn, ShieldCheck, KeyRound } from 'lucide-react';
 import { User } from '../services/storageService';
 import { BRAND_CONFIG } from '../config/brandConfig';
 import { ShopApiService } from '../services/shopApiService';
@@ -14,7 +13,18 @@ export const Auth: React.FC<AuthProps> = ({ onAuthComplete, onBack }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [otpToken, setOtpToken] = useState('');
+  const [otpNotice, setOtpNotice] = useState('');
   const [error, setError] = useState('');
+
+  const isOtpStep = useMemo(() => isLogin && Boolean(otpToken), [isLogin, otpToken]);
+
+  const resetOtpStep = () => {
+    setOtpToken('');
+    setOtpCode('');
+    setOtpNotice('');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,13 +33,42 @@ export const Auth: React.FC<AuthProps> = ({ onAuthComplete, onBack }) => {
     try {
       const cleanEmail = email.trim().toLowerCase();
       const cleanPassword = password.trim();
+
+      if (isLogin) {
+        if (isOtpStep) {
+          const cleanCode = otpCode.trim();
+          if (!cleanCode) {
+            setError('Verification code is required');
+            return;
+          }
+          const verifiedUser = await ShopApiService.authVerifyOtp(otpToken, cleanCode);
+          onAuthComplete(verifiedUser);
+          return;
+        }
+
+        if (!cleanEmail || !cleanPassword) {
+          setError('Email and password are required');
+          return;
+        }
+
+        const loginResult = await ShopApiService.authLogin(cleanEmail, cleanPassword);
+        if (loginResult.requires2fa) {
+          setOtpToken(loginResult.otpToken);
+          setOtpNotice(loginResult.message);
+          setOtpCode('');
+          return;
+        }
+
+        onAuthComplete(loginResult.user);
+        return;
+      }
+
       if (!cleanEmail || !cleanPassword) {
         setError('Email and password are required');
         return;
       }
-      const user: User = isLogin
-        ? await ShopApiService.authLogin(cleanEmail, cleanPassword)
-        : await ShopApiService.authRegister(cleanEmail, cleanPassword);
+
+      const user: User = await ShopApiService.authRegister(cleanEmail, cleanPassword);
       onAuthComplete(user);
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Authentication failed');
@@ -40,13 +79,16 @@ export const Auth: React.FC<AuthProps> = ({ onAuthComplete, onBack }) => {
     <div className="min-h-screen flex items-center justify-center bg-[#050505] px-4 relative">
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-yellow-500/5 blur-[120px] rounded-full pointer-events-none"></div>
 
-      <button onClick={onBack} className="absolute top-10 left-10 text-white/40 hover:text-white flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-colors z-50">
+      <button
+        onClick={onBack}
+        className="absolute top-10 left-10 text-white/40 hover:text-white flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-colors z-50"
+      >
         <ArrowLeft className="w-4 h-4" /> Back to Store
       </button>
 
       <div className="max-w-md w-full bg-[#0a0a0a] border border-white/5 rounded-[48px] p-12 shadow-2xl relative z-10 overflow-hidden">
         <div className="absolute top-0 right-0 p-8 opacity-10">
-           <ShieldCheck className="w-24 h-24 text-[#facc15]" />
+          <ShieldCheck className="w-24 h-24 text-[#facc15]" />
         </div>
 
         <div className="text-center mb-10 relative">
@@ -61,47 +103,106 @@ export const Auth: React.FC<AuthProps> = ({ onAuthComplete, onBack }) => {
               <LayoutGrid className="w-8 h-8 text-black" strokeWidth={3} />
             )}
           </div>
-          <h2 className="text-3xl font-black text-white tracking-tighter">{isLogin ? 'Welcome Back' : BRAND_CONFIG.copy.authJoinHeading}</h2>
+          <h2 className="text-3xl font-black text-white tracking-tighter">
+            {isOtpStep ? 'Email Verification' : isLogin ? 'Welcome Back' : BRAND_CONFIG.copy.authJoinHeading}
+          </h2>
           <p className="text-white/30 mt-2 text-[10px] font-black uppercase tracking-widest">
-            {isLogin ? 'Access your digital vault' : 'Start your premium journey'}
+            {isOtpStep ? 'Enter your one-time code to continue' : isLogin ? 'Access your digital vault' : 'Start your premium journey'}
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6 relative">
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-white/20 uppercase tracking-widest ml-2">Email Address</label>
-              <div className="relative">
-                <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
-                <input required type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-black border border-white/5 rounded-2xl px-12 py-4 text-white font-bold focus:border-[#facc15] outline-none transition-all" placeholder="name@email.com" />
+          {!isOtpStep ? (
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-white/20 uppercase tracking-widest ml-2">Email Address</label>
+                <div className="relative">
+                  <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                  <input
+                    required
+                    type="email"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    className="w-full bg-black border border-white/5 rounded-2xl px-12 py-4 text-white font-bold focus:border-[#facc15] outline-none transition-all"
+                    placeholder="name@email.com"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-white/20 uppercase tracking-widest ml-2">Secure Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                  <input
+                    required
+                    type="password"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    className="w-full bg-black border border-white/5 rounded-2xl px-12 py-4 text-white font-bold focus:border-[#facc15] outline-none transition-all"
+                    placeholder="••••••••"
+                  />
+                </div>
               </div>
             </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-white/20 uppercase tracking-widest ml-2">Secure Password</label>
-              <div className="relative">
-                <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
-                <input required type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-black border border-white/5 rounded-2xl px-12 py-4 text-white font-bold focus:border-[#facc15] outline-none transition-all" placeholder="••••••••" />
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-[#facc15]/20 bg-[#facc15]/5 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-[#facc15]/80">
+                {otpNotice || `Verification code sent to ${email}`}
               </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-white/20 uppercase tracking-widest ml-2">One-Time Verification Code</label>
+                <div className="relative">
+                  <KeyRound className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                  <input
+                    required
+                    inputMode="numeric"
+                    value={otpCode}
+                    onChange={e => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    className="w-full bg-black border border-white/5 rounded-2xl px-12 py-4 text-white font-bold tracking-[0.35em] focus:border-[#facc15] outline-none transition-all"
+                    placeholder="000000"
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={resetOtpStep}
+                className="w-full bg-black border border-white/10 text-white/60 font-black py-3 rounded-2xl transition-all hover:border-white/20 hover:text-white/90 uppercase tracking-widest text-[10px]"
+              >
+                Use a Different Login
+              </button>
             </div>
-          </div>
+          )}
 
-          {error && <p className="text-red-500 text-[10px] font-black uppercase text-center bg-red-500/5 py-3 rounded-xl border border-red-500/10">{error}</p>}
+          {error && (
+            <p className="text-red-500 text-[10px] font-black uppercase text-center bg-red-500/5 py-3 rounded-xl border border-red-500/10">
+              {error}
+            </p>
+          )}
 
-          <button type="submit" className="w-full bg-[#facc15] text-black font-black py-5 rounded-2xl transition-all shadow-xl shadow-yellow-400/10 hover:bg-yellow-300 uppercase tracking-widest text-xs flex items-center justify-center gap-2">
+          <button
+            type="submit"
+            className="w-full bg-[#facc15] text-black font-black py-5 rounded-2xl transition-all shadow-xl shadow-yellow-400/10 hover:bg-yellow-300 uppercase tracking-widest text-xs flex items-center justify-center gap-2"
+          >
             {isLogin ? <LogIn className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
-            {isLogin ? 'Authenticate' : 'Create Account'}
+            {isOtpStep ? 'Verify Code' : isLogin ? 'Authenticate' : 'Create Account'}
           </button>
         </form>
 
         <div className="mt-8 text-center relative border-t border-white/5 pt-8">
-          <button onClick={() => setIsLogin(!isLogin)} className="text-white/30 hover:text-white text-[10px] font-black uppercase tracking-widest transition-colors">
-            {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Login"}
+          <button
+            onClick={() => {
+              setIsLogin(!isLogin);
+              resetOtpStep();
+              setError('');
+            }}
+            className="text-white/30 hover:text-white text-[10px] font-black uppercase tracking-widest transition-colors"
+          >
+            {isLogin ? "Don't have an account? Sign Up" : 'Already have an account? Login'}
           </button>
         </div>
       </div>
-      
+
       <div className="fixed bottom-10 text-[9px] font-black text-white/10 uppercase tracking-[0.4em]">
-         Encrypted AES-256 Session Layer Active
+        Encrypted AES-256 Session Layer Active
       </div>
     </div>
   );

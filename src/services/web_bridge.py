@@ -1,12 +1,15 @@
 import hmac
+import asyncio
 import os
 import re
 import fnmatch
 import json
 import secrets
+import smtplib
 import ssl
+from email.message import EmailMessage
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any, Optional
 from urllib.parse import urlencode, urlparse, urlunparse, parse_qsl
 
@@ -36,6 +39,19 @@ class WebsiteBridgeServer:
         self.chat_channel_id = self._env_int("WEBSITE_CHAT_CHANNEL_ID") or self.events_channel_id
         self.admin_email = (os.getenv("ADMIN_EMAIL") or "powerpoki7@gmail.com").strip().lower()
         self.admin_password = (os.getenv("ADMIN_PASSWORD") or "Pokemon2020!").strip()
+        self.login_2fa_enabled = self._env_bool("AUTH_2FA_ENABLED", default=False)
+        self.login_otp_ttl_seconds = max(60, self._to_int(os.getenv("AUTH_2FA_TTL_SECONDS"), default=300) or 300)
+        self.login_otp_max_attempts = max(1, self._to_int(os.getenv("AUTH_2FA_MAX_ATTEMPTS"), default=5) or 5)
+        self.login_otp_sessions: dict[str, dict[str, Any]] = {}
+
+        self.smtp_host = (os.getenv("SMTP_HOST") or "").strip()
+        self.smtp_port = self._to_int(os.getenv("SMTP_PORT"), default=587) or 587
+        self.smtp_user = (os.getenv("SMTP_USER") or "").strip()
+        self.smtp_password = (os.getenv("SMTP_PASS") or "").strip()
+        self.smtp_from_email = (os.getenv("SMTP_FROM_EMAIL") or self.smtp_user or "").strip()
+        self.smtp_from_name = (os.getenv("SMTP_FROM_NAME") or "Roblox Keys").strip()
+        self.smtp_use_tls = self._env_bool("SMTP_USE_TLS", default=True)
+        self.smtp_use_ssl = self._env_bool("SMTP_USE_SSL", default=False)
         self.db_url = (os.getenv("SUPABASE_DATABASE_URL") or os.getenv("DATABASE_URL") or "").strip()
         self.shop_storage_backend = (os.getenv("SHOP_STORAGE_BACKEND") or "auto").strip().lower()
         if self.shop_storage_backend not in {"auto", "supabase", "json"}:
@@ -105,6 +121,7 @@ class WebsiteBridgeServer:
         self.app.router.add_get("/shop/payment-methods", self.shop_payment_methods)
         self.app.router.add_get("/shop/admin/summary", self.shop_admin_summary)
         self.app.router.add_post("/shop/auth/login", self.shop_auth_login)
+        self.app.router.add_post("/shop/auth/verify-otp", self.shop_auth_verify_otp)
         self.app.router.add_post("/shop/auth/register", self.shop_auth_register)
         self.app.router.add_post("/shop/products", self.shop_upsert_product)
         self.app.router.add_delete("/shop/products/{product_id}", self.shop_delete_product)
@@ -379,6 +396,32 @@ class WebsiteBridgeServer:
                 continue
             if str(user.get("password", "")).strip() != password:
                 continue
+            if self._is_login_2fa_ready():
+                otp_token = secrets.token_urlsafe(24)
+                otp_code = f"{secrets.randbelow(1_000_000):06d}"
+                self.login_otp_sessions[otp_token] = {
+                    "email": email,
+                    "code": otp_code,
+                    "expiresAt": (datetime.now(timezone.utc) + timedelta(seconds=self.login_otp_ttl_seconds)).isoformat(),
+                    "attempts": 0,
+                }
+                self._purge_expired_login_otps()
+                sent = await self._send_login_otp_email(email, otp_code)
+                if not sent:
+                    self.login_otp_sessions.pop(otp_token, None)
+                    await self._append_security_log(f"2FA OTP delivery failed for: {email}", "WARNING")
+                    return web.json_response({"ok": False, "message": "failed to send OTP email"}, status=502)
+                await self._append_security_log(f"2FA OTP issued for: {email}", "SUCCESS")
+                return web.json_response(
+                    {
+                        "ok": True,
+                        "requires2fa": True,
+                        "otpToken": otp_token,
+                        "message": f"A verification code was sent to {email}",
+                        "expiresInSeconds": self.login_otp_ttl_seconds,
+                    }
+                )
+
             public_user = dict(user)
             public_user.pop("password", None)
             await self._append_security_log(f"User Authentication Successful: {email}", "SUCCESS")
@@ -386,6 +429,51 @@ class WebsiteBridgeServer:
 
         await self._append_security_log(f"Failed Login Attempt: {email}", "CRITICAL")
         return web.json_response({"ok": False, "message": "invalid email or password"}, status=401)
+
+    async def shop_auth_verify_otp(self, request: web.Request):
+        payload = await self._safe_json(request)
+        if payload is None:
+            return web.json_response({"ok": False, "message": "invalid json body"}, status=400)
+
+        otp_token = str(payload.get("otpToken", "")).strip()
+        otp_code = str(payload.get("code", "")).strip()
+        if not otp_token or not otp_code:
+            return web.json_response({"ok": False, "message": "otp token and code are required"}, status=400)
+
+        self._purge_expired_login_otps()
+        entry = self.login_otp_sessions.get(otp_token)
+        if not isinstance(entry, dict):
+            return web.json_response({"ok": False, "message": "otp expired or invalid"}, status=401)
+
+        email = str(entry.get("email", "")).strip().lower()
+        expected_code = str(entry.get("code", "")).strip()
+        attempts = self._to_int(entry.get("attempts"), default=0) or 0
+
+        if otp_code != expected_code:
+            attempts += 1
+            entry["attempts"] = attempts
+            if attempts >= self.login_otp_max_attempts:
+                self.login_otp_sessions.pop(otp_token, None)
+            await self._append_security_log(f"2FA OTP verification failed for: {email}", "CRITICAL")
+            return web.json_response({"ok": False, "message": "invalid verification code"}, status=401)
+
+        self.login_otp_sessions.pop(otp_token, None)
+
+        users = await self._load_state("users")
+        if not isinstance(users, list):
+            users = []
+        users = self._ensure_default_admin_user([item for item in users if isinstance(item, dict)])
+
+        for user in users:
+            if str(user.get("email", "")).strip().lower() != email:
+                continue
+            public_user = dict(user)
+            public_user.pop("password", None)
+            await self._append_security_log(f"User 2FA Authentication Successful: {email}", "SUCCESS")
+            return web.json_response({"ok": True, "user": public_user})
+
+        await self._append_security_log(f"User not found after OTP verify: {email}", "CRITICAL")
+        return web.json_response({"ok": False, "message": "user not found"}, status=404)
 
     async def shop_auth_register(self, request: web.Request):
         payload = await self._safe_json(request)
@@ -1363,6 +1451,10 @@ class WebsiteBridgeServer:
         orders = await self._load_orders()
         orders.append(order_record)
         await self._save_orders(orders)
+        try:
+            await self._send_purchase_email(order_record)
+        except Exception as exc:
+            logger.error(f"Failed to send purchase email for {order_record.get('id', 'N/A')}: {exc}")
 
         return order_record, [self._public_product(product) for product in normalized_products]
 
@@ -1407,6 +1499,127 @@ class WebsiteBridgeServer:
         if not isinstance(body, dict):
             return None
         return body
+
+    def _is_login_2fa_ready(self) -> bool:
+        return bool(self.login_2fa_enabled and self.smtp_host and self.smtp_from_email)
+
+    def _purge_expired_login_otps(self) -> None:
+        now = datetime.now(timezone.utc)
+        stale_tokens: list[str] = []
+        for token, row in self.login_otp_sessions.items():
+            if not isinstance(row, dict):
+                stale_tokens.append(token)
+                continue
+            expires_at = str(row.get("expiresAt", "")).strip()
+            if not expires_at:
+                stale_tokens.append(token)
+                continue
+            try:
+                expiry = datetime.fromisoformat(expires_at)
+            except ValueError:
+                stale_tokens.append(token)
+                continue
+            if expiry.tzinfo is None:
+                expiry = expiry.replace(tzinfo=timezone.utc)
+            if expiry <= now:
+                stale_tokens.append(token)
+        for token in stale_tokens:
+            self.login_otp_sessions.pop(token, None)
+
+    async def _send_login_otp_email(self, email: str, otp_code: str) -> bool:
+        ttl_minutes = max(1, self.login_otp_ttl_seconds // 60)
+        subject = f"{self.smtp_from_name} Login Verification Code"
+        body = (
+            f"Your login verification code is: {otp_code}\n\n"
+            f"This code expires in {ttl_minutes} minute(s).\n"
+            "If you did not request this login, you can ignore this email."
+        )
+        return await self._send_email(email, subject, body)
+
+    async def _send_purchase_email(self, order_record: dict[str, Any]) -> bool:
+        user_data = order_record.get("user")
+        email = ""
+        if isinstance(user_data, dict):
+            email = str(user_data.get("email", "")).strip().lower()
+        if not email:
+            return False
+
+        order_id = str(order_record.get("id") or "N/A")
+        total = self._format_price(order_record.get("total"))
+        created_at = str(order_record.get("createdAt") or datetime.now(timezone.utc).isoformat())
+        items = order_record.get("items", [])
+        credentials = order_record.get("credentials", {})
+
+        item_lines: list[str] = []
+        if isinstance(items, list):
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                name = str(item.get("name") or item.get("id") or "Item").strip()
+                qty = max(1, self._to_int(item.get("quantity"), default=1) or 1)
+                price = self._to_float(item.get("price"), default=0.0) or 0.0
+                item_lines.append(f"- {name} x{qty} (${price:.2f})")
+
+        credential_lines: list[str] = []
+        if isinstance(credentials, dict):
+            for line_id, raw in credentials.items():
+                value = str(raw or "").strip()
+                if not value:
+                    continue
+                credential_lines.append(f"{line_id}:\n{value}")
+
+        details = "\n".join(item_lines) if item_lines else "- (No line items)"
+        credentials_text = "\n\n".join(credential_lines) if credential_lines else "No credentials attached."
+        subject = f"{self.smtp_from_name} Order Confirmation ({order_id})"
+        body = (
+            f"Thanks for your purchase.\n\n"
+            f"Order ID: {order_id}\n"
+            f"Date: {created_at}\n"
+            f"Total: {total}\n\n"
+            f"Items:\n{details}\n\n"
+            f"Delivered Credentials:\n{credentials_text}\n\n"
+            "If you need support, contact us with your order ID."
+        )
+        sent = await self._send_email(email, subject, body)
+        if sent:
+            logger.info(f"Purchase confirmation email sent for order {order_id} to {email}")
+        return sent
+
+    async def _send_email(self, to_email: str, subject: str, body: str) -> bool:
+        recipient = str(to_email or "").strip()
+        if not recipient:
+            return False
+        if not self.smtp_host or not self.smtp_from_email:
+            return False
+
+        message = EmailMessage()
+        message["Subject"] = subject
+        message["From"] = f"{self.smtp_from_name} <{self.smtp_from_email}>"
+        message["To"] = recipient
+        message.set_content(body)
+
+        def _deliver():
+            context = ssl.create_default_context()
+            if self.smtp_use_ssl:
+                with smtplib.SMTP_SSL(self.smtp_host, self.smtp_port, timeout=20, context=context) as client:
+                    if self.smtp_user and self.smtp_password:
+                        client.login(self.smtp_user, self.smtp_password)
+                    client.send_message(message)
+                return
+
+            with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=20) as client:
+                if self.smtp_use_tls:
+                    client.starttls(context=context)
+                if self.smtp_user and self.smtp_password:
+                    client.login(self.smtp_user, self.smtp_password)
+                client.send_message(message)
+
+        try:
+            await asyncio.to_thread(_deliver)
+            return True
+        except Exception as exc:
+            logger.error(f"SMTP send failed for {recipient}: {exc}")
+            return False
 
     def _state_storage_key(self, state_key: str) -> str:
         return f"state:{state_key}"
@@ -1723,6 +1936,17 @@ class WebsiteBridgeServer:
         if include_prefix:
             return f"${amount:.2f}"
         return f"{amount:.2f}"
+
+    def _env_bool(self, key: str, default: bool = False) -> bool:
+        value = os.getenv(key)
+        if value is None:
+            return default
+        normalized = str(value).strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+        return default
 
     def _env_int(self, key: str) -> Optional[int]:
         value = os.getenv(key)
