@@ -45,7 +45,7 @@ export const Navbar: React.FC<NavbarProps> = ({ cartCount, onCartClick, onAdminC
 
           <button className="hidden items-center gap-2 text-[11px] font-black uppercase tracking-widest text-white/40 transition-colors hover:text-white sm:flex">
             <MessageCircle className="h-3.5 w-3.5" />
-            <span>{BRAND_CONFIG.emojis.support} Support</span>
+            <span>Support</span>
           </button>
 
           <button
