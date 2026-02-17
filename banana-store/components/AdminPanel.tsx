@@ -1475,6 +1475,48 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
               <div className="xl:col-span-12 rounded-2xl border border-[#facc15]/25 bg-[#facc15]/10 px-4 py-2.5 text-xs text-yellow-100/85">
                 Fill sections top to bottom: basics, pricing, media, then tiers. If a product has tiers, add stock per tier with <span className="font-semibold text-[#facc15]">Add Keys</span> in the Products table.
               </div>
+              <div className="space-y-4 xl:col-span-4 xl:col-start-9 xl:self-start xl:sticky xl:top-3">
+                <div className="rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.015))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07)]">
+                  <div className="mb-1 text-sm font-black tracking-wide text-white">5. Display & Delivery Options</div>
+                  <div className="mb-2 text-xs text-yellow-200/70">Control badges, counters, and delivery behavior.</div>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <label className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"><input type="checkbox" checked={Boolean(draft.hideStockCount)} onChange={(e) => setDraft({ ...draft, hideStockCount: e.target.checked })} /> Hide stock count</label>
+                    <label className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"><input type="checkbox" checked={Boolean(draft.showViewsCount)} onChange={(e) => setDraft({ ...draft, showViewsCount: e.target.checked })} /> Show views count</label>
+                    <label className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"><input type="checkbox" checked={Boolean(draft.showSalesCount)} onChange={(e) => setDraft({ ...draft, showSalesCount: e.target.checked })} /> Show sales count</label>
+                    <label className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"><input type="checkbox" checked={Boolean(draft.popular)} onChange={(e) => setDraft({ ...draft, popular: e.target.checked })} /> Popular badge</label>
+                    <label className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"><input type="checkbox" checked={Boolean(draft.featured)} onChange={(e) => setDraft({ ...draft, featured: e.target.checked })} /> Featured badge</label>
+                    <label className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"><input type="checkbox" checked={Boolean(draft.verified)} onChange={(e) => setDraft({ ...draft, verified: e.target.checked })} /> Verified product</label>
+                    <label className="flex items-center gap-2 rounded-lg border border-[#facc15]/25 bg-[#facc15]/10 px-3 py-2 text-sm sm:col-span-2"><input type="checkbox" checked={Boolean(draft.instantDelivery)} onChange={(e) => setDraft({ ...draft, instantDelivery: e.target.checked })} /> Instant delivery</label>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07)]">
+                  <div className="mb-1 text-sm font-black tracking-wide text-white">Live Summary</div>
+                  <div className="mb-3 text-xs text-yellow-200/70">This updates as you edit fields.</div>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
+                      <span className="text-white/70">Mode</span>
+                      <span className="font-bold text-white">{tierDrafts.length > 0 ? 'Tiered product' : 'Single product'}</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
+                      <span className="text-white/70">Tier Count</span>
+                      <span className="font-bold text-white">{tierDrafts.length}</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
+                      <span className="text-white/70">Effective Stock</span>
+                      <span className="font-bold text-white">{tierDrafts.length > 0 ? tierDrafts.reduce((sum, tier) => sum + Number(tier.stock || 0), 0) : Number(draft.stock || 0)}</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
+                      <span className="text-white/70">Price Range</span>
+                      <span className="font-bold text-white">
+                        {tierDrafts.length > 0
+                          ? `$${Math.min(...tierDrafts.map((tier) => Number(tier.price || 0))).toFixed(2)} - $${Math.max(...tierDrafts.map((tier) => Number(tier.price || 0))).toFixed(2)}`
+                          : `$${Number(draft.price || 0).toFixed(2)}`}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
               <div className="xl:col-span-8 rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.015))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07)]">
                 <div className="mb-1 text-sm font-black tracking-wide text-white">1. Basics</div>
                 <div className="mb-3 text-xs text-yellow-200/70">Core product identity and storefront labels.</div>
@@ -1692,55 +1734,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
                     <div className="text-xs text-yellow-200/70">No tiers yet. Leave empty for a single product listing.</div>
                   )}
                 </div>
-              </div>
-
-              <div className="xl:col-span-4 xl:self-start xl:sticky xl:top-3 rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.015))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07)]">
-                <div className="mb-1 text-sm font-black tracking-wide text-white">5. Display & Delivery Options</div>
-                <div className="mb-2 text-xs text-yellow-200/70">Control badges, counters, and delivery behavior.</div>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <label className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"><input type="checkbox" checked={Boolean(draft.hideStockCount)} onChange={(e) => setDraft({ ...draft, hideStockCount: e.target.checked })} /> Hide stock count</label>
-                  <label className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"><input type="checkbox" checked={Boolean(draft.showViewsCount)} onChange={(e) => setDraft({ ...draft, showViewsCount: e.target.checked })} /> Show views count</label>
-                  <label className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"><input type="checkbox" checked={Boolean(draft.showSalesCount)} onChange={(e) => setDraft({ ...draft, showSalesCount: e.target.checked })} /> Show sales count</label>
-                  <label className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"><input type="checkbox" checked={Boolean(draft.popular)} onChange={(e) => setDraft({ ...draft, popular: e.target.checked })} /> Popular badge</label>
-                  <label className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"><input type="checkbox" checked={Boolean(draft.featured)} onChange={(e) => setDraft({ ...draft, featured: e.target.checked })} /> Featured badge</label>
-                  <label className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"><input type="checkbox" checked={Boolean(draft.verified)} onChange={(e) => setDraft({ ...draft, verified: e.target.checked })} /> Verified product</label>
-                  <label className="flex items-center gap-2 rounded-lg border border-[#facc15]/25 bg-[#facc15]/10 px-3 py-2 text-sm sm:col-span-2"><input type="checkbox" checked={Boolean(draft.instantDelivery)} onChange={(e) => setDraft({ ...draft, instantDelivery: e.target.checked })} /> Instant delivery</label>
-                </div>
-              </div>
-
-              <div className="xl:col-span-4 rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07)]">
-                <div className="mb-1 text-sm font-black tracking-wide text-white">Live Summary</div>
-                <div className="mb-3 text-xs text-yellow-200/70">This updates as you edit fields.</div>
-                <div className="space-y-2 text-xs">
-                  <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
-                    <span className="text-white/70">Mode</span>
-                    <span className="font-bold text-white">{tierDrafts.length > 0 ? 'Tiered product' : 'Single product'}</span>
-                  </div>
-                  <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
-                    <span className="text-white/70">Tier Count</span>
-                    <span className="font-bold text-white">{tierDrafts.length}</span>
-                  </div>
-                  <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
-                    <span className="text-white/70">Effective Stock</span>
-                    <span className="font-bold text-white">{tierDrafts.length > 0 ? tierDrafts.reduce((sum, tier) => sum + Number(tier.stock || 0), 0) : Number(draft.stock || 0)}</span>
-                  </div>
-                  <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
-                    <span className="text-white/70">Price Range</span>
-                    <span className="font-bold text-white">
-                      {tierDrafts.length > 0
-                        ? `$${Math.min(...tierDrafts.map((tier) => Number(tier.price || 0))).toFixed(2)} - $${Math.max(...tierDrafts.map((tier) => Number(tier.price || 0))).toFixed(2)}`
-                        : `$${Number(draft.price || 0).toFixed(2)}`}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="xl:col-span-12 sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/10 bg-[#0d0d0d]/92 px-3 py-3 backdrop-blur-xl">
-                <div className="text-xs text-yellow-200/70">
-                  Mode: <span className="font-semibold text-white">{tierDrafts.length > 0 ? 'Tiered product' : 'Single product'}</span>
-                </div>
-                <button type="button" onClick={() => setOpenEditor(false)} className={subtleButtonClass}>Cancel</button>
-                <button type="submit" className={`${primaryButtonClass} inline-flex items-center gap-2`}><Save className="w-4 h-4" /> Save</button>
               </div>
             </form>
           </div>
