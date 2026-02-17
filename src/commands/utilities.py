@@ -6,6 +6,7 @@ from typing import Optional
 from ..utils.base_cog import BaseCog
 from ..utils.embeds import EmbedUtils
 from ..utils.constants import Emojis, Colors
+from ..services.database import AutoRoleConfig
 import re
 import json
 
@@ -156,10 +157,17 @@ class Utilities(BaseCog):
     @app_commands.default_permissions(administrator=True)
     async def autoroles(self, interaction: discord.Interaction, role: discord.Role):
         await interaction.response.defer(ephemeral=True)
-        
-        # This would typically save to database - for now just confirm
+
+        await AutoRoleConfig.update_or_create(
+            guild_id=str(interaction.guild_id),
+            defaults={"role_id": str(role.id)},
+        )
+
         await interaction.followup.send(
-            embed=EmbedUtils.success("Autorole Set", f"New members will receive {role.mention}.\n\n*Note: Autorole persistence requires database configuration.*")
+            embed=EmbedUtils.success(
+                "Autorole Set",
+                f"New members will now automatically receive {role.mention}.",
+            )
         )
 
     @app_commands.command(name="terms", description="Display Terms of Service")

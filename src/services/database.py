@@ -73,6 +73,19 @@ class StaffMember(Model):
     class Meta:
         table = "staff_members"
 
+class StaffPayment(Model):
+    """Stores staff payment records."""
+    id = fields.IntField(pk=True)
+    guild_id = fields.CharField(max_length=20)
+    staff_user_id = fields.CharField(max_length=20)
+    payer_user_id = fields.CharField(max_length=20)
+    amount = fields.FloatField(default=0.0)
+    method = fields.CharField(max_length=100, default="manual")
+    created_at = fields.DatetimeField(auto_now_add=True)
+
+    class Meta:
+        table = "staff_payments"
+
 class BlockedUser(Model):
     """Stores users blocked from creating tickets"""
     id = fields.IntField(pk=True)
@@ -84,6 +97,15 @@ class BlockedUser(Model):
     
     class Meta:
         table = "blocked_users"
+
+class AutoRoleConfig(Model):
+    """Stores default autorole assignment per guild."""
+    guild_id = fields.CharField(pk=True, max_length=20)
+    role_id = fields.CharField(max_length=20)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = "autorole_configs"
 
 async def init_db():
     supabase_db_url = os.getenv("SUPABASE_DATABASE_URL")

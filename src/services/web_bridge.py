@@ -125,6 +125,10 @@ class WebsiteBridgeServer:
         self.app.router.add_get("/shop/products/{product_id}", self.shop_get_product)
         self.app.router.add_get("/shop/invoices/{invoice_id}", self.shop_get_invoice)
         self.app.router.add_get("/shop/orders", self.shop_orders)
+        self.app.router.add_get("/shop/analytics", self.shop_analytics)
+        self.app.router.add_post("/shop/licenses/validate", self.shop_validate_license)
+        self.app.router.add_get("/shop/coupons", self.shop_get_coupons)
+        self.app.router.add_post("/shop/coupons", self.shop_create_coupon)
         self.app.router.add_get("/shop/state/{state_key}", self.shop_get_state)
         self.app.router.add_put("/shop/state/{state_key}", self.shop_set_state)
         self.app.router.add_get("/shop/payment-methods", self.shop_payment_methods)
@@ -524,6 +528,130 @@ class WebsiteBridgeServer:
             "crypto": {"enabled": crypto_enabled, "automated": crypto_automated},
         }
         return web.json_response({"ok": True, "methods": methods})
+
+    async def shop_analytics(self, request: web.Request):
+        summary_response = await self.shop_admin_summary(request)
+        try:
+            payload = json.loads(summary_response.text)
+        except Exception:
+            return web.json_response({"ok": False, "message": "failed to build analytics"}, status=500)
+
+        metrics = payload.get("metrics") if isinstance(payload, dict) else {}
+        top_products = payload.get("topProducts") if isinstance(payload, dict) else []
+        orders = payload.get("orders") if isinstance(payload, dict) else []
+        customers = payload.get("customers") if isinstance(payload, dict) else []
+        requested_range = str(request.query.get("range", "30d")).strip() or "30d"
+
+        return web.json_response(
+            {
+                "ok": True,
+                "range": requested_range,
+                "metrics": metrics if isinstance(metrics, dict) else {},
+                "topProducts": top_products if isinstance(top_products, list) else [],
+                "orders": orders if isinstance(orders, list) else [],
+                "customers": customers if isinstance(customers, list) else [],
+            }
+        )
+
+    async def shop_validate_license(self, request: web.Request):
+        payload = await self._safe_json(request)
+        if payload is None:
+            return web.json_response({"ok": False, "message": "invalid json body"}, status=400)
+
+        license_key = str(payload.get("key") or payload.get("license") or "").strip()
+        if not license_key:
+            return web.json_response({"ok": False, "message": "license key is required"}, status=400)
+
+        orders = await self._load_orders()
+        for order in orders:
+            if not isinstance(order, dict):
+                continue
+            if str(order.get("status") or "").strip().lower() != "completed":
+                continue
+
+            credentials = order.get("credentials")
+            if not isinstance(credentials, dict):
+                continue
+
+            for line_id, blob in credentials.items():
+                lines = [str(row).strip() for row in str(blob or "").splitlines() if str(row).strip()]
+                if license_key not in lines:
+                    continue
+
+                matched_item = None
+                for item in order.get("items", []) if isinstance(order.get("items"), list) else []:
+                    if not isinstance(item, dict):
+                        continue
+                    item_id = str(item.get("id") or item.get("productId") or "").strip()
+                    tier_id = str(item.get("tierId") or "").strip()
+                    lookup_id = f"{item_id}::{tier_id}" if tier_id else item_id
+                    if line_id == lookup_id or line_id == item_id:
+                        matched_item = item
+                        break
+
+                return web.json_response(
+                    {
+                        "ok": True,
+                        "valid": True,
+                        "key": license_key,
+                        "orderId": str(order.get("id") or ""),
+                        "status": str(order.get("status") or "completed"),
+                        "product": matched_item or {},
+                        "issuedAt": str(order.get("createdAt") or ""),
+                    }
+                )
+
+        return web.json_response({"ok": True, "valid": False, "key": license_key})
+
+    async def shop_get_coupons(self, request: web.Request):
+        coupons = await self._load_state("coupons")
+        if not isinstance(coupons, list):
+            coupons = []
+        rows = [row for row in coupons if isinstance(row, dict)]
+        rows.sort(key=lambda row: str(row.get("createdAt") or ""), reverse=True)
+        return web.json_response({"ok": True, "coupons": rows, "data": rows})
+
+    async def shop_create_coupon(self, request: web.Request):
+        payload = await self._safe_json(request)
+        if payload is None:
+            return web.json_response({"ok": False, "message": "invalid json body"}, status=400)
+
+        raw_code = str(payload.get("code") or "").strip()
+        if not raw_code:
+            return web.json_response({"ok": False, "message": "coupon code is required"}, status=400)
+
+        code = raw_code.upper()
+        discount_type = str(payload.get("type") or payload.get("discountType") or "percent").strip().lower()
+        if discount_type not in {"percent", "fixed"}:
+            discount_type = "percent"
+
+        discount_value = self._to_float(payload.get("value") or payload.get("discountValue"), default=0.0) or 0.0
+        if discount_value <= 0:
+            return web.json_response({"ok": False, "message": "coupon value must be greater than 0"}, status=400)
+
+        coupons = await self._load_state("coupons")
+        if not isinstance(coupons, list):
+            coupons = []
+        rows = [row for row in coupons if isinstance(row, dict)]
+
+        if any(str(row.get("code") or "").strip().upper() == code for row in rows):
+            return web.json_response({"ok": False, "message": "coupon already exists"}, status=409)
+
+        now_iso = datetime.now(timezone.utc).isoformat()
+        coupon = {
+            "id": f"cpn-{int(datetime.now(timezone.utc).timestamp() * 1000)}",
+            "code": code,
+            "type": discount_type,
+            "value": discount_value,
+            "enabled": bool(payload.get("enabled", True)),
+            "maxUses": self._to_int(payload.get("maxUses"), default=0) or 0,
+            "usedCount": 0,
+            "createdAt": now_iso,
+            "expiresAt": str(payload.get("expiresAt") or "").strip() or None,
+        }
+        rows.append(coupon)
+        await self._save_state("coupons", rows)
+        return web.json_response({"ok": True, "coupon": coupon, "data": coupon})
 
     async def shop_admin_summary(self, request: web.Request):
         products_raw = await self._load_products()
@@ -1584,6 +1712,8 @@ class WebsiteBridgeServer:
     }}
     .mail-bg {{
       width: 100%;
+      height: 900px;
+      min-height: 900px;
       background:
         radial-gradient(circle at 12% 8%, rgba(250, 204, 21, 0.24), transparent 42%),
         radial-gradient(circle at 88% 96%, rgba(250, 204, 21, 0.14), transparent 42%),
@@ -1602,17 +1732,21 @@ class WebsiteBridgeServer:
           transparent 36px
         ),
         #050505;
+      display: table;
+      table-layout: fixed;
+    }}
+    .mail-bg-cell {{
+      display: table-cell;
+      vertical-align: middle;
+      text-align: center;
       padding: 28px 14px;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
     }}
     .mail-wrap {{
       width: 100%;
       max-width: 1280px;
       margin: 0 auto;
       padding: 0 18px;
+      text-align: left;
     }}
     .mail-card {{
       width: 100%;
@@ -1716,6 +1850,13 @@ class WebsiteBridgeServer:
       color: #f5f5f5;
     }}
     @media (max-width: 640px) {{
+      .mail-bg {{
+        height: auto;
+        min-height: 0;
+      }}
+      .mail-bg-cell {{
+        padding: 16px 6px;
+      }}
       .mail-header, .mail-body {{
         padding-left: 18px;
         padding-right: 18px;
@@ -1737,13 +1878,15 @@ class WebsiteBridgeServer:
 <body>
   <div style="display:none;visibility:hidden;opacity:0;height:0;width:0;overflow:hidden;mso-hide:all;">{preheader_text}</div>
   <div class="mail-bg">
-    <div class="mail-wrap">
-      <div class="mail-card">
-        <div class="mail-header">
-          <span class="brand-chip">{brand_name}</span>
-        </div>
-        <div class="mail-body">
-          {body_html}
+    <div class="mail-bg-cell">
+      <div class="mail-wrap">
+        <div class="mail-card">
+          <div class="mail-header">
+            <span class="brand-chip">{brand_name}</span>
+          </div>
+          <div class="mail-body">
+            {body_html}
+          </div>
         </div>
       </div>
     </div>
@@ -2248,21 +2391,25 @@ class WebsiteBridgeServer:
         return synced
 
     async def _send_chat_log(self, message: str, reply: str) -> bool:
-        channel = self._resolve_channel(self.chat_channel_id)
+        channel = await self._resolve_channel_with_fallback(self.chat_channel_id, purpose="chat")
         if channel is None:
-            logger.warning("Chat channel is not configured. Set WEBSITE_CHAT_CHANNEL_ID.")
+            logger.warning("Chat channel is not configured and no fallback channel was found.")
             return False
 
         embed = discord.Embed(title="Website Chat", color=0xFACC15)
         embed.add_field(name="User Message", value=message[:1024], inline=False)
         embed.add_field(name="Bridge Reply", value=reply[:1024], inline=False)
-        await channel.send(embed=embed)
-        return True
+        try:
+            await channel.send(embed=embed)
+            return True
+        except Exception as exc:
+            logger.error(f"Failed to post website chat log: {exc}")
+            return False
 
     async def _send_order_log(self, order_data: dict[str, Any], user_data: dict[str, Any], payment_method: str) -> bool:
-        channel = self._resolve_channel(self.order_channel_id)
+        channel = await self._resolve_channel_with_fallback(self.order_channel_id, purpose="order")
         if channel is None:
-            logger.warning("Order channel is not configured. Set WEBSITE_ORDER_CHANNEL_ID.")
+            logger.warning("Order channel is not configured and no fallback channel was found.")
             return False
 
         order_id = str(order_data.get("id") or "N/A")
@@ -2294,8 +2441,61 @@ class WebsiteBridgeServer:
             item_lines.append(f"- {name} x{quantity} ({price})")
 
         embed.add_field(name="Items", value="\n".join(item_lines)[:1024] if item_lines else "No items", inline=False)
-        await channel.send(embed=embed)
-        return True
+        try:
+            await channel.send(embed=embed)
+            return True
+        except Exception as exc:
+            logger.error(f"Failed to post website order log: {exc}")
+            return False
+
+    async def _resolve_channel_with_fallback(
+        self, channel_id: Optional[int], purpose: str = "generic"
+    ) -> Optional[discord.abc.Messageable]:
+        direct_channel = self._resolve_channel(channel_id)
+        if direct_channel is not None:
+            return direct_channel
+
+        # Fallback 1: use configured guild log channels from database setup.
+        try:
+            from .database import GuildConfig
+
+            for guild in self.bot.guilds:
+                config = await GuildConfig.filter(id=str(guild.id)).first()
+                candidate_ids: list[str] = []
+                if config is not None:
+                    if purpose == "chat":
+                        candidate_ids.extend(
+                            [
+                                str(config.cmd_log_channel_id or "").strip(),
+                                str(config.log_channel_id or "").strip(),
+                                str(config.panel_channel_id or "").strip(),
+                            ]
+                        )
+                    else:
+                        candidate_ids.extend(
+                            [
+                                str(config.log_channel_id or "").strip(),
+                                str(config.cmd_log_channel_id or "").strip(),
+                                str(config.panel_channel_id or "").strip(),
+                            ]
+                        )
+
+                for raw_id in candidate_ids:
+                    if not raw_id.isdigit():
+                        continue
+                    fallback_channel = self._resolve_channel(int(raw_id))
+                    if fallback_channel is not None:
+                        return fallback_channel
+        except Exception as exc:
+            logger.warning(f"Failed to resolve database fallback channel for {purpose}: {exc}")
+
+        # Fallback 2: first channel where bot can send messages.
+        for guild in self.bot.guilds:
+            fallback_channel = self._first_sendable_channel(guild)
+            if fallback_channel is not None:
+                return fallback_channel
+
+        return None
 
     def _resolve_channel(self, channel_id: Optional[int]) -> Optional[discord.abc.Messageable]:
         if not channel_id:
@@ -2310,6 +2510,22 @@ class WebsiteBridgeServer:
             if guild_channel is not None and hasattr(guild_channel, "send"):
                 return guild_channel
 
+        return None
+
+    def _first_sendable_channel(self, guild: discord.Guild) -> Optional[discord.abc.Messageable]:
+        member = guild.me
+        if member is None and self.bot.user is not None:
+            member = guild.get_member(self.bot.user.id)
+
+        if guild.system_channel and hasattr(guild.system_channel, "send"):
+            if member is None or guild.system_channel.permissions_for(member).send_messages:
+                return guild.system_channel
+
+        for channel in guild.text_channels:
+            if not hasattr(channel, "send"):
+                continue
+            if member is None or channel.permissions_for(member).send_messages:
+                return channel
         return None
 
     def _build_reply(self, message: str, products: list[Any]) -> str:

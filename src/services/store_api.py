@@ -57,6 +57,8 @@ class StoreApiService:
             "products": os.getenv("STORE_API_PRODUCTS_ENDPOINT", "products"),
             "product": os.getenv("STORE_API_PRODUCT_ENDPOINT", "products/{product_id}"),
             "invoice": os.getenv("STORE_API_INVOICE_ENDPOINT", "invoices/{invoice_id}"),
+            "orders": os.getenv("STORE_API_ORDERS_ENDPOINT", "orders"),
+            "admin_summary": os.getenv("STORE_API_ADMIN_SUMMARY_ENDPOINT", "admin/summary"),
             "payment_methods": os.getenv("STORE_API_PAYMENT_METHODS_ENDPOINT", "payment-methods"),
             "validate_license": os.getenv("STORE_API_VALIDATE_LICENSE_ENDPOINT", "licenses/validate"),
             "analytics": os.getenv("STORE_API_ANALYTICS_ENDPOINT", "analytics"),
@@ -278,6 +280,31 @@ class StoreApiService:
                 return payload
         return None
 
+    async def get_orders(
+        self,
+        *,
+        status: Optional[str] = None,
+        user_id: Optional[str] = None,
+        user_email: Optional[str] = None,
+    ):
+        params: Dict[str, Any] = {}
+        if status:
+            params["status"] = str(status).strip()
+        if user_id:
+            params["userId"] = str(user_id).strip()
+        if user_email:
+            params["userEmail"] = str(user_email).strip().lower()
+
+        payload = await self._request("GET", self._endpoint("orders"), params or None)
+        if isinstance(payload, list):
+            return payload
+        if isinstance(payload, dict):
+            for key in ("orders", "data", "result", "items"):
+                value = payload.get(key)
+                if isinstance(value, list):
+                    return value
+        return []
+
     async def validate_license(self, key: str):
         return await self._request("POST", self._endpoint("validate_license"), {"key": key})
 
@@ -306,6 +333,12 @@ class StoreApiService:
     async def get_analytics(self, timeframe: str = "30d"):
         endpoint = self._endpoint("analytics")
         return await self._request("GET", endpoint, {"range": timeframe})
+
+    async def get_admin_summary(self):
+        payload = await self._request("GET", self._endpoint("admin_summary"))
+        if isinstance(payload, dict):
+            return payload
+        return {}
 
     async def create_coupon(self, data: Dict[str, Any]):
         return await self._request("POST", self._endpoint("coupons"), data)

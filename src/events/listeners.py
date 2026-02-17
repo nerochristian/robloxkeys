@@ -36,8 +36,17 @@ class GeneralListeners(BaseCog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
-        from ..services.database import GuildConfig
+        from ..services.database import GuildConfig, AutoRoleConfig
         from ..utils.welcome_card import build_welcome_card_file
+
+        autorole = await AutoRoleConfig.filter(guild_id=str(member.guild.id)).first()
+        if autorole and str(autorole.role_id).isdigit():
+            role = member.guild.get_role(int(autorole.role_id))
+            if role:
+                try:
+                    await member.add_roles(role, reason="Autorole assignment")
+                except Exception as e:
+                    logger.error(f"Failed to assign autorole for {member.id}: {e}")
         
         config = await GuildConfig.filter(id=str(member.guild.id)).first()
         if not config or not config.welcome_channel_id:

@@ -6,7 +6,7 @@ from typing import Optional
 from ..utils.base_cog import BaseCog
 from ..utils.embeds import EmbedUtils
 from ..utils.constants import Emojis, Colors
-from ..services.database import StaffMember
+from ..services.database import StaffMember, StaffPayment
 
 
 class Staff(BaseCog):
@@ -101,10 +101,26 @@ class Staff(BaseCog):
     @app_commands.default_permissions(administrator=True)
     async def pay_staff(self, interaction: discord.Interaction, user: discord.Member, amount: float, method: str):
         await interaction.response.defer(ephemeral=True)
-        
-        # Log the payment (could save to database)
+
+        staff = await StaffMember.filter(
+            guild_id=str(interaction.guild_id),
+            user_id=str(user.id)
+        ).first()
+        if not staff:
+            return await interaction.followup.send(
+                embed=EmbedUtils.error("Not Staff", f"{user.mention} is not in the staff database.")
+            )
+
+        await StaffPayment.create(
+            guild_id=str(interaction.guild_id),
+            staff_user_id=str(user.id),
+            payer_user_id=str(interaction.user.id),
+            amount=float(amount),
+            method=str(method).strip() or "manual",
+        )
+
         embed = discord.Embed(
-            title="💰 Staff Payment Recorded",
+            title="Staff Payment Recorded",
             color=Colors.SUCCESS
         )
         embed.add_field(name="Staff Member", value=user.mention, inline=True)
@@ -112,7 +128,7 @@ class Staff(BaseCog):
         embed.add_field(name="Method", value=method, inline=True)
         embed.add_field(name="Paid By", value=interaction.user.mention, inline=True)
         embed.timestamp = discord.utils.utcnow()
-        
+
         await interaction.followup.send(embed=embed)
 
     @app_commands.command(name="staff-mail", description="Send a DM to staff members")

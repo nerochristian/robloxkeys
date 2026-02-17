@@ -1,178 +1,191 @@
-import discord
 from datetime import datetime, timezone
+
+import discord
 from discord import app_commands
-from discord.ext import commands
-from ..utils.base_cog import BaseCog
-from ..utils.embeds import EmbedUtils
-from ..utils.constants import Emojis, Colors
-from ..utils.components_v2 import create_container
+
 from ..services.store_api import store_api
+from ..utils.base_cog import BaseCog
+from ..utils.constants import Colors
+from ..utils.embeds import EmbedUtils
+
 
 class Orders(BaseCog):
     def __init__(self, bot):
         super().__init__(bot)
 
-    # --- Public Commands ---
-
-    @app_commands.command(name="redeem", description="Redeem a voucher code")
-    @app_commands.describe(code="The voucher code", email="Your email address")
+    @app_commands.command(name="redeem", description="Validate a code against the live license API")
+    @app_commands.describe(code="The license or voucher code", email="Your email address")
     async def redeem(self, interaction: discord.Interaction, code: str, email: str):
         await interaction.response.defer(ephemeral=True)
-        # Logic to redeem
-        await interaction.followup.send(embed=EmbedUtils.success("Redeemed", f"Successfully redeemed code `{code}` for `{email}`! check your inbox."))
 
-    @app_commands.command(name="check-replace", description="Check replacement status for an invoice")
+        payload = await store_api.validate_license(code)
+        if not isinstance(payload, dict):
+            await interaction.followup.send(
+                embed=EmbedUtils.error("API Error", "License endpoint did not return a valid response."),
+                ephemeral=True,
+            )
+            return
+
+        is_valid = bool(payload.get("valid"))
+        if not is_valid:
+            await interaction.followup.send(
+                embed=EmbedUtils.error("Invalid Code", f"`{code}` is not valid or already used."),
+                ephemeral=True,
+            )
+            return
+
+        order_id = str(payload.get("orderId") or payload.get("invoiceId") or "N/A")
+        product = payload.get("product") if isinstance(payload.get("product"), dict) else {}
+        product_name = str(product.get("name") or payload.get("productName") or "Unknown Product")
+
+        embed = discord.Embed(title="Code Validated", color=Colors.SUCCESS)
+        embed.description = f"Code `{code}` was validated for `{email}`."
+        embed.add_field(name="Order", value=f"`{order_id}`", inline=True)
+        embed.add_field(name="Product", value=product_name[:1024], inline=True)
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="check-replace", description="Check replacement eligibility for an invoice")
     @app_commands.describe(invoice_id="The invoice ID to check")
     async def check_replace(self, interaction: discord.Interaction, invoice_id: str):
         await interaction.response.defer(ephemeral=True)
-        
-        # Try to get order
-        order = await store_api.get_invoice(invoice_id)
-        
-        if not order:
-            return await interaction.followup.send(
-                embed=EmbedUtils.error("Not Found", f"Invoice `{invoice_id}` was not found.")
-            )
-        
-        # Check replacement eligibility (mock logic)
-        embed = discord.Embed(
-            title=f"🔄 Replacement Check - #{invoice_id}",
-            color=Colors.INFO
-        )
-        embed.add_field(name="Invoice Status", value=order.get('status', 'Unknown'), inline=True)
-        embed.add_field(name="Eligible for Replacement", value="✅ Yes" if order.get('status') == 'completed' else "❌ No", inline=True)
-        embed.add_field(name="Products", value=str(len(order.get('items', []))), inline=True)
-        
-        await interaction.followup.send(embed=embed)
 
-    @app_commands.command(name="methods", description="View available payment methods")
+        order = await store_api.get_invoice(invoice_id)
+        if not isinstance(order, dict):
+            await interaction.followup.send(
+                embed=EmbedUtils.error("Not Found", f"Invoice `{invoice_id}` was not found."),
+                ephemeral=True,
+            )
+            return
+
+        status = str(order.get("status") or "unknown").strip().lower()
+        eligible = status == "completed"
+        items = order.get("items") if isinstance(order.get("items"), list) else []
+
+        embed = discord.Embed(
+            title=f"Replacement Check - #{invoice_id}",
+            color=Colors.INFO,
+        )
+        embed.add_field(name="Invoice Status", value=status, inline=True)
+        embed.add_field(name="Eligible", value="Yes" if eligible else "No", inline=True)
+        embed.add_field(name="Items", value=str(len(items)), inline=True)
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="methods", description="View enabled payment methods from API")
     async def methods(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
-        methods = await store_api.get_payment_methods()
+        payload = await store_api.get_payment_methods()
+        if not payload:
+            await interaction.followup.send(
+                embed=EmbedUtils.error("Unavailable", "Could not fetch payment methods from API."),
+                ephemeral=True,
+            )
+            return
+
+        methods = {}
+        if isinstance(payload, dict):
+            if isinstance(payload.get("methods"), dict):
+                methods = payload.get("methods") or {}
+            elif all(isinstance(v, dict) for v in payload.values()):
+                methods = payload
+
         if not methods:
-            return await interaction.followup.send(
-                embed=EmbedUtils.error("Unavailable", "Could not fetch payment methods from your store API."),
+            await interaction.followup.send(
+                embed=EmbedUtils.error("Unavailable", "No method configuration returned by API."),
                 ephemeral=True,
             )
+            return
 
-        if isinstance(methods, dict) and any(k in methods for k in ("card", "paypal", "crypto")):
-            data = methods
-        elif isinstance(methods, dict):
-            data = (
-                methods.get("data")
-                or methods.get("payment_methods")
-                or methods.get("methods")
-                or methods.get("result")
-            )
-        else:
-            data = methods
+        lines = []
+        for key, row in methods.items():
+            if not isinstance(row, dict):
+                continue
+            if not bool(row.get("enabled", False)):
+                continue
+            mode = "auto" if bool(row.get("automated", False)) else "manual"
+            lines.append(f"- {str(key).capitalize()} ({mode})")
 
-        if isinstance(data, dict):
-            nested = data.get("payment_methods") or data.get("methods") or data.get("data")
-            if isinstance(nested, list):
-                data = nested
+        if not lines:
+            lines = ["No payment methods are currently enabled."]
 
-        if not data:
-            return await interaction.followup.send(
-                embed=EmbedUtils.error("Unavailable", "No payment methods were returned by your store API."),
-                ephemeral=True,
-            )
-
-        method_names = []
-        if isinstance(data, dict) and any(k in data for k in ("card", "paypal", "crypto")):
-            labels = {"card": "Card", "paypal": "PayPal", "crypto": "Crypto"}
-            for key, meta in data.items():
-                if isinstance(meta, dict) and not meta.get("enabled", False):
-                    continue
-                method_names.append(labels.get(str(key).lower(), str(key).title()))
-        else:
-            for item in data if isinstance(data, list) else [data]:
-                if isinstance(item, str):
-                    method_names.append(item)
-                    continue
-                if isinstance(item, dict):
-                    name = item.get("name") or item.get("title") or item.get("method") or item.get("type")
-                    if name:
-                        method_names.append(str(name))
-
-        if not method_names:
-            return await interaction.followup.send(
-                embed=EmbedUtils.error("Unavailable", "No payment methods were returned by your store API."),
-                ephemeral=True,
-            )
-
-        embed = discord.Embed(
-            title="💳 Payment Methods",
-            description="\n".join([f"• {name}" for name in method_names]),
-            color=Colors.PRIMARY,
-        )
-        embed.set_footer(text="Powered by Store API")
-
+        embed = discord.Embed(title="Payment Methods", description="\n".join(lines), color=Colors.PRIMARY)
         await interaction.followup.send(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="payment-methods", description="Select your preferred payment method")
-    @app_commands.describe(method="Choose your payment method")
-    @app_commands.choices(method=[
-        app_commands.Choice(name="PayPal", value="paypal"),
-        app_commands.Choice(name="CashApp", value="cashapp"),
-        app_commands.Choice(name="Bitcoin", value="btc"),
-        app_commands.Choice(name="Ethereum", value="eth"),
-        app_commands.Choice(name="Credit Card", value="card"),
-    ])
+    @app_commands.command(name="payment-methods", description="Check if a payment method is enabled in API")
+    @app_commands.describe(method="Choose method")
+    @app_commands.choices(
+        method=[
+            app_commands.Choice(name="PayPal", value="paypal"),
+            app_commands.Choice(name="CashApp", value="cashapp"),
+            app_commands.Choice(name="Bitcoin", value="btc"),
+            app_commands.Choice(name="Ethereum", value="eth"),
+            app_commands.Choice(name="Credit Card", value="card"),
+        ]
+    )
     async def payment_methods(self, interaction: discord.Interaction, method: str):
-        method_info = {
-            "paypal": ("PayPal", "Send to: payments@robloxkeys.store"),
-            "cashapp": ("CashApp", "Send to: $robloxkeys"),
-            "btc": ("Bitcoin", "Address will be provided after confirmation"),
-            "eth": ("Ethereum", "Address will be provided after confirmation"),
-            "card": ("Credit Card", "Checkout via our secure payment page"),
-        }
-        
-        name, details = method_info.get(method, ("Unknown", "Contact support"))
-        
-        embed = discord.Embed(
-            title=f"💳 {name} Payment",
-            description=f"**Instructions:**\n{details}\n\nAfter payment, open a ticket with your invoice details.",
-            color=Colors.SUCCESS
+        await interaction.response.defer(ephemeral=True)
+
+        payload = await store_api.get_payment_methods()
+        if not isinstance(payload, dict):
+            await interaction.followup.send(
+                embed=EmbedUtils.error("API Error", "Could not load payment configuration."),
+                ephemeral=True,
+            )
+            return
+
+        methods = payload.get("methods") if isinstance(payload.get("methods"), dict) else payload
+        if not isinstance(methods, dict):
+            await interaction.followup.send(
+                embed=EmbedUtils.error("API Error", "Invalid payment method payload."),
+                ephemeral=True,
+            )
+            return
+
+        alias_map = {"btc": "crypto", "eth": "crypto", "cashapp": "paypal"}
+        api_key = alias_map.get(method.strip().lower(), method.strip().lower())
+        row = methods.get(api_key)
+
+        if not isinstance(row, dict):
+            await interaction.followup.send(
+                embed=EmbedUtils.error("Unsupported", f"`{method}` is not exposed by API."),
+                ephemeral=True,
+            )
+            return
+        if not bool(row.get("enabled", False)):
+            await interaction.followup.send(
+                embed=EmbedUtils.error("Disabled", f"`{method}` is currently disabled."),
+                ephemeral=True,
+            )
+            return
+
+        automated = bool(row.get("automated", False))
+        details = (
+            "Automated checkout is enabled. Use website checkout flow."
+            if automated
+            else "Manual flow. Complete payment and open a support ticket with your invoice."
         )
-        
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        embed = discord.Embed(title=f"{api_key.capitalize()} Payment", description=details, color=Colors.SUCCESS)
+        embed.add_field(name="Enabled", value="Yes", inline=True)
+        embed.add_field(name="Automated", value="Yes" if automated else "No", inline=True)
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
-    # --- Staff Commands ---
-
-    @app_commands.command(name="invoice-id", description="Look up an invoice by ID")
+    @app_commands.command(name="invoice-id", description="Look up an invoice by ID from API")
     @app_commands.describe(invoice_id="The invoice ID")
     async def invoice_lookup(self, interaction: discord.Interaction, invoice_id: str):
         await interaction.response.defer(ephemeral=True)
-        
-        order = await store_api.get_invoice(invoice_id)
-        data = order.get("data") if isinstance(order, dict) else None
-        if not data and isinstance(order, dict):
-            data = order.get("invoice") or order
-        if not data:
-            data = {
-                "id": invoice_id,
-                "email": "customer@example.com",
-                "total": "19.99",
-                "total_paid": "19.99",
-                "currency": "USD",
-                "items": [{"name": "LifeTime Key", "quantity": 1, "price": "19.99"}],
-                "status": "completed",
-                "manual": False,
-                "gateway": "manual",
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            }
+
+        data = await store_api.get_invoice(invoice_id)
+        if not isinstance(data, dict):
+            await interaction.followup.send(
+                embed=EmbedUtils.error("Not Found", f"Invoice `{invoice_id}` was not found in API."),
+                ephemeral=True,
+            )
+            return
 
         def _value(val, fallback="Unknown"):
             if val is None or val == "":
                 return fallback
             return str(val)
-
-        def _bool(val):
-            if val is None:
-                return "Unknown"
-            return "Yes" if bool(val) else "No"
 
         def _amount(amount, currency):
             if amount is None or amount == "":
@@ -185,38 +198,35 @@ class Orders(BaseCog):
             if isinstance(raw, (int, float)):
                 ts = int(raw)
                 if ts > 10_000_000_000:
-                    ts = int(ts / 1000)
+                    ts //= 1000
                 dt = datetime.fromtimestamp(ts, tz=timezone.utc)
                 return discord.utils.format_dt(dt, style="f")
-            if isinstance(raw, str):
-                raw_str = raw.strip()
-                if raw_str.isdigit():
-                    return _format_time(int(raw_str))
-                try:
-                    raw_str = raw_str.replace("Z", "+00:00")
-                    dt = datetime.fromisoformat(raw_str)
-                    if dt.tzinfo is None:
-                        dt = dt.replace(tzinfo=timezone.utc)
-                    return discord.utils.format_dt(dt, style="f")
-                except Exception:
-                    return raw
-            return str(raw)
+            raw_s = str(raw).strip()
+            if raw_s.isdigit():
+                return _format_time(int(raw_s))
+            try:
+                dt = datetime.fromisoformat(raw_s.replace("Z", "+00:00"))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                return discord.utils.format_dt(dt, style="f")
+            except Exception:
+                return raw_s
 
         invoice_id_value = _value(data.get("id") or data.get("invoice_id") or invoice_id)
         status = _value(data.get("status") or data.get("state"))
-        manual = _bool(data.get("manual") or data.get("is_manual"))
-        replace = _bool(data.get("replace") or data.get("replacement") or data.get("replaceable"))
         gateway = _value(data.get("gateway") or data.get("payment_gateway") or data.get("method"))
-        email = _value(data.get("email") or data.get("customer_email"))
-        number_id = _value(data.get("number") or data.get("invoice_number") or data.get("short_id"))
+        user_payload = data.get("user") if isinstance(data.get("user"), dict) else {}
+        email = _value(data.get("email") or user_payload.get("email") or data.get("customer_email"))
 
         currency = data.get("currency") or data.get("currency_code") or ""
         total_price = _amount(data.get("total") or data.get("total_price") or data.get("amount"), currency)
         total_paid = _amount(data.get("total_paid") or data.get("paid") or data.get("amount_paid"), currency)
 
-        items = data.get("items") or data.get("products") or []
+        items = data.get("items")
         if isinstance(items, dict):
-            items = items.get("data") or items.get("items") or []
+            items = items.get("items") or items.get("data")
+        if not isinstance(items, list):
+            items = []
 
         item_lines = []
         for idx, item in enumerate(items, start=1):
@@ -228,41 +238,42 @@ class Orders(BaseCog):
             price = item.get("price") or item.get("total") or item.get("amount")
             item_currency = item.get("currency") or currency
             price_text = _amount(price, item_currency) if price is not None else None
-            line = f"{idx}. {name} x{qty}"
+            row = f"{idx}. {name} x{qty}"
             if price_text and price_text != "Unknown":
-                line = f"{line} • {price_text}"
-            item_lines.append(line)
+                row = f"{row} - {price_text}"
+            item_lines.append(row)
 
         items_value = "\n".join(item_lines) if item_lines else "No items"
         if len(items_value) > 1000:
             items_value = items_value[:1000] + "..."
 
         embed = discord.Embed(
-            title=f"🧾 Invoice: {invoice_id_value}",
+            title=f"Invoice: {invoice_id_value}",
             color=Colors.INFO,
         )
-        embed.add_field(name="🔒 Status", value=status, inline=True)
-        embed.add_field(name="🧾 Manual", value=manual, inline=True)
-        embed.add_field(name="🆔 ID", value=number_id, inline=True)
-        embed.add_field(name="🧩 Replace", value=replace, inline=True)
-        embed.add_field(name="💳 Gateway", value=gateway, inline=True)
-        embed.add_field(name="📧 Email", value=email, inline=True)
+        embed.add_field(name="Status", value=status, inline=True)
+        embed.add_field(name="Gateway", value=gateway, inline=True)
+        embed.add_field(name="Email", value=email, inline=False)
         embed.add_field(
-            name="💰 Amounts",
+            name="Amounts",
             value=f"Total Price: {total_price}\nTotal Paid: {total_paid}",
             inline=False,
         )
-        embed.add_field(name="📦 Items", value=items_value, inline=False)
-        embed.add_field(name="🕒 Created", value=_format_time(data.get("created_at") or data.get("created")), inline=True)
-        embed.add_field(name="✅ Completed", value=_format_time(data.get("completed_at") or data.get("completed")), inline=True)
+        embed.add_field(name="Items", value=items_value, inline=False)
+        embed.add_field(
+            name="Created",
+            value=_format_time(data.get("created_at") or data.get("createdAt") or data.get("created")),
+            inline=True,
+        )
+        embed.add_field(
+            name="Completed",
+            value=_format_time(data.get("completed_at") or data.get("completedAt") or data.get("completed")),
+            inline=True,
+        )
         embed.set_footer(text="Invoices System")
 
-        view = discord.ui.View()
-        view.add_item(discord.ui.Button(label="See Items", style=discord.ButtonStyle.secondary, custom_id=f"invoice_items_{invoice_id}"))
-        view.add_item(discord.ui.Button(label="Replace Details", style=discord.ButtonStyle.secondary, custom_id=f"invoice_replace_{invoice_id}"))
-        view.add_item(discord.ui.Button(label="Staff Actions", style=discord.ButtonStyle.secondary, custom_id=f"invoice_staff_{invoice_id}"))
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
-        await interaction.followup.send(embed=embed, view=view)
 
 async def setup(bot):
     await bot.add_cog(Orders(bot))
