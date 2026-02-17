@@ -437,6 +437,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
     }
   };
 
+  const clearDraftImageField = (target: 'image' | 'bannerImage') => {
+    setDraft((prev) => ({ ...prev, [target]: '' }));
+    setMessage(`${target === 'image' ? 'Card image' : 'Banner image'} removed.`);
+  };
+
+  const clearTierImage = (tierIndex: number) => {
+    setTierDrafts((prev) => prev.map((tier, idx) => (idx === tierIndex ? { ...tier, image: '' } : tier)));
+    setMessage('Tier image removed.');
+  };
+
   const saveProduct = (e: React.FormEvent) => {
     e.preventDefault();
     const normalizedTiers = tierDrafts
@@ -1656,38 +1666,58 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
                     <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-yellow-200/70">Card Image URL</label>
                     <div className="space-y-2">
                       <input value={draft.image} onChange={(e) => setDraft({ ...draft, image: e.target.value })} className={fieldClass} placeholder="https://... or upload below" />
-                      <label className={`${subtleButtonClass} flex cursor-pointer items-center justify-center`}>
-                        <input
-                          type="file"
-                          accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) void uploadDraftImage(file, 'image');
-                            e.currentTarget.value = '';
-                          }}
-                        />
-                        {uploadingField === 'image' ? 'Uploading...' : 'Upload Card Image'}
-                      </label>
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <label className={`${subtleButtonClass} flex cursor-pointer items-center justify-center`}>
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) void uploadDraftImage(file, 'image');
+                              e.currentTarget.value = '';
+                            }}
+                          />
+                          {uploadingField === 'image' ? 'Uploading...' : 'Upload Card Image'}
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => clearDraftImageField('image')}
+                          disabled={!String(draft.image || '').trim()}
+                          className="rounded-xl border border-red-400/35 bg-red-500/10 px-3 py-2 text-sm text-red-200 transition-all hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          Remove Image
+                        </button>
+                      </div>
                     </div>
                   </div>
                   <div>
                     <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-yellow-200/70">Banner URL (optional)</label>
                     <div className="space-y-2">
                       <input value={draft.bannerImage || ''} onChange={(e) => setDraft({ ...draft, bannerImage: e.target.value })} className={fieldClass} placeholder="https://... or upload below" />
-                      <label className={`${subtleButtonClass} flex cursor-pointer items-center justify-center`}>
-                        <input
-                          type="file"
-                          accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) void uploadDraftImage(file, 'bannerImage');
-                            e.currentTarget.value = '';
-                          }}
-                        />
-                        {uploadingField === 'bannerImage' ? 'Uploading...' : 'Upload Banner'}
-                      </label>
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <label className={`${subtleButtonClass} flex cursor-pointer items-center justify-center`}>
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) void uploadDraftImage(file, 'bannerImage');
+                              e.currentTarget.value = '';
+                            }}
+                          />
+                          {uploadingField === 'bannerImage' ? 'Uploading...' : 'Upload Banner'}
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => clearDraftImageField('bannerImage')}
+                          disabled={!String(draft.bannerImage || '').trim()}
+                          className="rounded-xl border border-red-400/35 bg-red-500/10 px-3 py-2 text-sm text-red-200 transition-all hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          Remove Banner
+                        </button>
+                      </div>
                     </div>
                   </div>
                   <div>
@@ -1802,10 +1832,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
                         />
                         {uploadingField === `tier-${idx}` ? 'Uploading...' : 'Upload Tier Image'}
                       </label>
+                      <button
+                        type="button"
+                        onClick={() => clearTierImage(idx)}
+                        disabled={!String(tier.image || '').trim()}
+                        className="rounded-xl border border-red-400/35 bg-red-500/10 px-3 py-2 text-xs text-red-200 transition-all hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-40 md:col-span-1"
+                      >
+                        Remove Image
+                      </button>
                       <input
                         value={tier.description || ''}
                         onChange={(e) => setTierDrafts((prev) => prev.map((item, i) => (i === idx ? { ...item, description: e.target.value } : item)))}
-                        className={`${fieldCompactClass} md:col-span-2`}
+                        className={`${fieldCompactClass} md:col-span-1`}
                         placeholder="Tier description (optional)"
                       />
                       <div className="rounded border border-[#facc15]/20 bg-[#090909] px-2 py-1 text-xs md:col-span-2">
