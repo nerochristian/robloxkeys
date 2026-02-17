@@ -110,7 +110,6 @@ export const ProductTierPanel: React.FC<ProductTierPanelProps> = ({
           {tiers.map((tier, index) => {
             const inStock = Number(tier.stock || 0) > 0;
             const isSelected = activeTierId === tier.id;
-            const isHovered = hoveredTierId === tier.id;
             const stockChipClass = inStock
               ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300'
               : 'border-red-400/30 bg-red-400/10 text-red-300';
@@ -146,11 +145,6 @@ export const ProductTierPanel: React.FC<ProductTierPanelProps> = ({
                     background:
                       'radial-gradient(280px circle at var(--tier-glow-x) var(--tier-glow-y), rgba(250,204,21,0.22) 0%, rgba(250,204,21,0.11) 34%, rgba(250,204,21,0.03) 52%, transparent 72%)',
                   }}
-                />
-                <span
-                  className={`pointer-events-none absolute left-1/2 top-1/2 h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#facc15]/75 transition-opacity duration-700 ${
-                    isHovered ? 'opacity-100' : 'opacity-0'
-                  }`}
                 />
                 <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(120deg,rgba(250,204,21,0.0)_0%,rgba(250,204,21,0.08)_35%,rgba(250,204,21,0.0)_70%)] opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
 
