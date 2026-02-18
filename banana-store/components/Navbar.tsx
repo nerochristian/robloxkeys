@@ -21,7 +21,7 @@ export const Navbar: React.FC<NavbarProps> = ({ cartCount, onCartClick, onAdminC
     <nav className="fixed left-0 top-0 z-50 w-full px-2 py-2 pointer-events-none sm:px-4 sm:py-4">
       <div className="mx-auto flex max-w-[1900px] items-center justify-between gap-3 px-1 py-1 pointer-events-auto">
         <button
-          className="flex items-center justify-center p-1"
+          className="flex items-center justify-center"
           onClick={onLogoClick}
           aria-label="Home"
         >

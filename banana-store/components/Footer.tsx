@@ -12,10 +12,10 @@ export const Footer: React.FC<FooterProps> = ({ onOpenPrivacy, onOpenTerms }) =>
     <footer className="relative overflow-hidden border-t border-white/5 bg-[#050505]/50 py-20 sm:py-32">
       {/* Subtle bottom glow */}
       <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full max-w-4xl h-32 bg-yellow-500/5 blur-[120px] pointer-events-none"></div>
-      
+
       <div className="relative z-10 mx-auto flex max-w-7xl flex-col items-center px-4 sm:px-6">
         <div className="group mb-8 flex cursor-pointer items-center gap-3 opacity-80 transition-opacity hover:opacity-100 sm:mb-10">
-          <div className="bg-[#facc15] p-2 rounded-xl rotate-3 group-hover:rotate-0 transition-transform">
+          <div className="bg-[#facc15] rounded-xl rotate-3 group-hover:rotate-0 transition-transform overflow-hidden">
             {BRAND_CONFIG.assets.logoUrl ? (
               <img
                 src={BRAND_CONFIG.assets.logoUrl}
@@ -28,11 +28,11 @@ export const Footer: React.FC<FooterProps> = ({ onOpenPrivacy, onOpenTerms }) =>
           </div>
           <span className="text-2xl font-black tracking-tighter text-white sm:text-3xl">{BRAND_CONFIG.identity.storeName}</span>
         </div>
-        
+
         <p className="mb-8 max-w-sm text-center text-[10px] font-black uppercase leading-relaxed tracking-[0.25em] text-white/20 sm:mb-10 sm:text-[11px] sm:tracking-[0.4em]">
           {BRAND_CONFIG.copy.footerTagline}
         </p>
-        
+
         <div className="flex flex-wrap justify-center gap-x-12 gap-y-4 text-[10px] font-black text-white/30 uppercase tracking-[0.25em]">
           <a
             href={BRAND_CONFIG.links.support}
