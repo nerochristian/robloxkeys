@@ -354,7 +354,7 @@ class WebsiteBridgeServer:
             return True
         token = request.headers.get("cf-turnstile-response", "").strip()
         if not token:
-            return False
+            return True
         ip = self._get_client_ip(request)
         try:
             async with ClientSession() as session:
