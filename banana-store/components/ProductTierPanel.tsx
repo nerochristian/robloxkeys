@@ -9,6 +9,17 @@ interface ProductTierPanelProps {
   onSelectTier: (product: Product, tier: ProductTier) => void;
 }
 
+const buildInlineFallback = (name: string): string => {
+  const initials = String(name || 'RK')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || '')
+    .join('') || 'RK';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="220" viewBox="0 0 320 220"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#111827"/><stop offset="100%" stop-color="#030712"/></linearGradient></defs><rect width="320" height="220" rx="24" fill="url(#bg)"/><rect x="8" y="8" width="304" height="204" rx="18" fill="none" stroke="#facc15" stroke-opacity="0.35"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="82" font-weight="800" fill="#facc15">${initials}</text></svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+};
+
 export const ProductTierPanel: React.FC<ProductTierPanelProps> = ({
   isOpen,
   product,
@@ -110,6 +121,8 @@ export const ProductTierPanel: React.FC<ProductTierPanelProps> = ({
           {tiers.map((tier, index) => {
             const inStock = Number(tier.stock || 0) > 0;
             const isSelected = activeTierId === tier.id;
+            const fallbackImage = buildInlineFallback(tier.name || product.name);
+            const tierImage = tier.image || product.image || product.bannerImage || fallbackImage;
             const stockChipClass = inStock
               ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300'
               : 'border-red-400/30 bg-red-400/10 text-red-300';
@@ -152,11 +165,13 @@ export const ProductTierPanel: React.FC<ProductTierPanelProps> = ({
                   <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
                     <div className="relative h-20 w-28 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-black sm:h-20 sm:w-28">
                       <img
-                        src={tier.image || product.image}
+                        src={tierImage}
                         alt={tier.name}
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                         onError={(e) => {
-                          (e.target as HTMLImageElement).src = 'https://api.dicebear.com/7.x/initials/svg?seed=' + tier.name;
+                          const img = e.currentTarget;
+                          img.onerror = null;
+                          img.src = fallbackImage;
                         }}
                       />
                       <div className="absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-xs font-black text-white">

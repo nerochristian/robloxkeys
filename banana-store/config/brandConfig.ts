@@ -1,3 +1,10 @@
+type RuntimeBranding = {
+  storeName?: string;
+  logoUrl?: string;
+  bannerUrl?: string;
+  faviconUrl?: string;
+};
+
 export const BRAND_CONFIG = {
   // Shared brand asset URLs for website surfaces.
   // Keep these aligned with bot branding constants/env where possible.
@@ -41,7 +48,29 @@ export const BRAND_CONFIG = {
   storage: {
     keyPrefix: "robloxkeys",
   },
-} as const;
+};
+
+const clean = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
+
+export const applyRuntimeBranding = (branding: RuntimeBranding | null | undefined) => {
+  if (!branding || typeof branding !== "object") return;
+
+  const storeName = clean(branding.storeName);
+  const logoUrl = clean(branding.logoUrl);
+  const bannerUrl = clean(branding.bannerUrl);
+  const faviconUrl = clean(branding.faviconUrl);
+
+  if (storeName) {
+    BRAND_CONFIG.identity.storeName = storeName;
+    BRAND_CONFIG.identity.shortName = storeName;
+    BRAND_CONFIG.identity.botName = `${storeName} Bot`;
+    BRAND_CONFIG.identity.adminPanelName = `${storeName} Panel`;
+    BRAND_CONFIG.identity.pageTitle = `${storeName} - Premium Digital Goods`;
+  }
+  if (logoUrl) BRAND_CONFIG.assets.logoUrl = logoUrl;
+  if (bannerUrl) BRAND_CONFIG.assets.bannerUrl = bannerUrl;
+  if (faviconUrl) BRAND_CONFIG.assets.faviconUrl = faviconUrl;
+};
 
 export const BRAND_INITIALS = BRAND_CONFIG.identity.shortName
   .split(" ")

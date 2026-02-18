@@ -149,6 +149,9 @@ class WebsiteBridgeServer:
             1,
             self._to_int(os.getenv("SHOP_IMAGE_UPLOAD_MAX_ENTRIES"), default=250) or 250,
         )
+        self.brand_logo_url = (os.getenv("BRAND_LOGO_URL") or "").strip()
+        self.brand_banner_url = (os.getenv("BRAND_BANNER_URL") or "").strip()
+        self.brand_favicon_url = (os.getenv("BRAND_FAVICON_URL") or "").strip()
         self.state_keys = (
             "settings",
             "users",
@@ -516,6 +519,8 @@ class WebsiteBridgeServer:
         products = await self._load_products()
         orders = await self._load_orders()
         pending = await self._load_pending_payments()
+        settings = await self._load_state("settings")
+        branding = self._extract_branding_from_settings(settings if isinstance(settings, dict) else {})
         return web.json_response(
             {
                 "ok": True,
@@ -526,6 +531,7 @@ class WebsiteBridgeServer:
                 "oxapayEnabled": bool(self.oxapay_merchant_api_key),
                 "storageBackend": "supabase" if self.use_supabase_storage else "json",
                 "data_dir": str(self.data_dir),
+                "branding": branding,
             }
         )
 
@@ -3132,6 +3138,9 @@ class WebsiteBridgeServer:
         defaults: dict[str, Any] = {
             "settings": {
                 "storeName": os.getenv("BRAND_NAME", "Roblox Keys"),
+                "logoUrl": self.brand_logo_url,
+                "bannerUrl": self.brand_banner_url,
+                "faviconUrl": self.brand_favicon_url,
                 "currency": "USD",
                 "paypalEmail": "",
                 "stripeKey": "",
@@ -3176,6 +3185,18 @@ class WebsiteBridgeServer:
         }
         value = defaults.get(state_key, [])
         return json.loads(json.dumps(value))
+
+    def _extract_branding_from_settings(self, settings: dict[str, Any]) -> dict[str, str]:
+        store_name = str(settings.get("storeName") or os.getenv("BRAND_NAME") or "Roblox Keys").strip() or "Roblox Keys"
+        logo_url = str(settings.get("logoUrl") or self.brand_logo_url or "").strip()
+        banner_url = str(settings.get("bannerUrl") or self.brand_banner_url or "").strip()
+        favicon_url = str(settings.get("faviconUrl") or logo_url or self.brand_favicon_url or "").strip()
+        return {
+            "storeName": store_name,
+            "logoUrl": logo_url,
+            "bannerUrl": banner_url,
+            "faviconUrl": favicon_url,
+        }
 
     async def _load_state(self, state_key: str) -> Any:
         if not self._is_state_key_allowed(state_key):
@@ -3984,13 +4005,20 @@ class WebsiteBridgeServer:
         if not isinstance(inventory, list):
             inventory = []
         normalized_inventory = [str(item).strip() for item in inventory if str(item).strip()]
+        image_value = str(
+            tier.get("image")
+            or tier.get("imageUrl")
+            or tier.get("image_url")
+            or tier.get("thumbnail")
+            or ""
+        ).strip()
         return {
             "id": str(tier.get("id", "")).strip(),
             "name": str(tier.get("name", "")).strip(),
             "description": str(tier.get("description", "")).strip(),
             "price": self._to_float(tier.get("price"), default=0.0) or 0.0,
             "originalPrice": self._to_float(tier.get("originalPrice"), default=0.0) or 0.0,
-            "image": str(tier.get("image", "")).strip(),
+            "image": image_value,
             "duration": str(tier.get("duration", "")).strip(),
             "stock": len(normalized_inventory),
             "inventory": normalized_inventory,
@@ -4056,6 +4084,22 @@ class WebsiteBridgeServer:
         if badge_icon not in {"grid", "key", "shield"}:
             badge_icon = "grid"
 
+        image_value = str(
+            product.get("image")
+            or product.get("imageUrl")
+            or product.get("image_url")
+            or product.get("thumbnail")
+            or product.get("icon")
+            or ""
+        ).strip()
+        banner_image_value = str(
+            product.get("bannerImage")
+            or product.get("banner_image")
+            or product.get("coverImage")
+            or product.get("cover_image")
+            or ""
+        ).strip()
+
         return {
             "id": str(product.get("id", "")).strip(),
             "name": str(product.get("name", "")).strip(),
@@ -4067,8 +4111,8 @@ class WebsiteBridgeServer:
             "type": type_value,
             "features": [str(feature) for feature in features],
             "detailedDescription": [str(line) for line in detailed],
-            "image": str(product.get("image", "")).strip(),
-            "bannerImage": str(product.get("bannerImage", "")).strip(),
+            "image": image_value,
+            "bannerImage": banner_image_value,
             "category": str(product.get("category", "")).strip(),
             "group": str(product.get("group", "")).strip(),
             "visibility": str(product.get("visibility", "public")).strip() or "public",

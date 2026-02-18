@@ -15,7 +15,7 @@ import { AdminPanel } from './components/AdminPanel';
 import { Checkout } from './components/Checkout';
 import { Product, CartItem, AdminSettings, ProductTier } from './types';
 import type { Order, User } from './services/storageService';
-import { BRAND_CONFIG } from './config/brandConfig';
+import { applyRuntimeBranding, BRAND_CONFIG } from './config/brandConfig';
 import { ShopApiService } from './services/shopApiService';
 
 const RESERVED_SLUGS = new Set(['vault', 'admin', 'auth', 'product']);
@@ -119,11 +119,33 @@ export default function App() {
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
   const [adminSettings, setAdminSettings] = useState<AdminSettings>({
     storeName: BRAND_CONFIG.identity.storeName,
+    logoUrl: BRAND_CONFIG.assets.logoUrl,
+    bannerUrl: BRAND_CONFIG.assets.bannerUrl,
+    faviconUrl: BRAND_CONFIG.assets.faviconUrl,
     currency: 'USD',
     paypalEmail: '',
     stripeKey: '',
     cryptoAddress: ''
   });
+
+  useEffect(() => {
+    applyRuntimeBranding({
+      storeName: adminSettings.storeName,
+      logoUrl: adminSettings.logoUrl,
+      bannerUrl: adminSettings.bannerUrl,
+      faviconUrl: adminSettings.faviconUrl,
+    });
+    document.title = BRAND_CONFIG.identity.pageTitle;
+
+    if (BRAND_CONFIG.assets.faviconUrl) {
+      const favicon = document.querySelector("link[rel='icon']") || document.createElement('link');
+      favicon.setAttribute('rel', 'icon');
+      favicon.setAttribute('href', BRAND_CONFIG.assets.faviconUrl);
+      if (!favicon.parentNode) {
+        document.head.appendChild(favicon);
+      }
+    }
+  }, [adminSettings]);
 
   const applyRoute = (pathname: string, catalog: Product[], session: User | null, search: string = window.location.search) => {
     const route = resolveRoute(pathname, catalog, session);
@@ -176,6 +198,14 @@ export default function App() {
       try {
         const health = await ShopApiService.health();
         setApiOnline(Boolean(health.ok));
+        if (health.branding && typeof health.branding === 'object') {
+          applyRuntimeBranding({
+            storeName: String(health.branding.storeName || '').trim(),
+            logoUrl: String(health.branding.logoUrl || '').trim(),
+            bannerUrl: String(health.branding.bannerUrl || '').trim(),
+            faviconUrl: String(health.branding.faviconUrl || '').trim(),
+          });
+        }
       } catch {
         setApiOnline(false);
       }

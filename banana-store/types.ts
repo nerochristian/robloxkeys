@@ -63,6 +63,9 @@ export interface ChatMessage {
 
 export interface AdminSettings {
   storeName: string;
+  logoUrl?: string;
+  bannerUrl?: string;
+  faviconUrl?: string;
   currency: string;
   paypalEmail: string;
   stripeKey: string;

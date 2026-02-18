@@ -198,6 +198,9 @@ export const StorageService = {
     if (!localStorage.getItem(STORAGE_KEYS.SETTINGS)) {
       const defaultSettings: AdminSettings = {
         storeName: BRAND_CONFIG.identity.storeName,
+        logoUrl: BRAND_CONFIG.assets.logoUrl,
+        bannerUrl: BRAND_CONFIG.assets.bannerUrl,
+        faviconUrl: BRAND_CONFIG.assets.faviconUrl,
         currency: 'USD',
         paypalEmail: '',
         stripeKey: '',
@@ -279,6 +282,9 @@ export const StorageService = {
   getSettings: (): AdminSettings => {
     const fallback: AdminSettings = {
       storeName: BRAND_CONFIG.identity.storeName,
+      logoUrl: BRAND_CONFIG.assets.logoUrl,
+      bannerUrl: BRAND_CONFIG.assets.bannerUrl,
+      faviconUrl: BRAND_CONFIG.assets.faviconUrl,
       currency: 'USD',
       paypalEmail: '',
       stripeKey: '',

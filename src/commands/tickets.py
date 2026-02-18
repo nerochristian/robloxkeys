@@ -25,14 +25,35 @@ from ..services.transcript_service import generate_transcript
 from tortoise.transactions import in_transaction
 from ..utils.logger import logger
 
-SERVER_LOGO = (
+DEFAULT_SERVER_LOGO = (
     os.getenv("BRAND_LOGO_URL")
     or "https://cdn.discordapp.com/icons/1388303592502333530/9d7828a6890fa9cbd6ce373d295992b3.webp?size=512&quality=lossless"
 )
-SERVER_BANNER = (
+DEFAULT_SERVER_BANNER = (
     os.getenv("BRAND_BANNER_URL")
     or "https://cdn.discordapp.com/banners/1388303592502333530/f51da5b94a949ddd93ce874a8f58176a.webp?size=1024"
 )
+
+
+async def _resolve_brand_assets(bot: discord.Client) -> tuple[str, str]:
+    logo_url = DEFAULT_SERVER_LOGO
+    banner_url = DEFAULT_SERVER_BANNER
+
+    bridge = getattr(bot, "website_bridge", None)
+    if bridge is None:
+        return logo_url, banner_url
+
+    try:
+        settings = await bridge._load_state("settings")
+    except Exception as exc:
+        logger.warning(f"Failed to load branding settings for tickets: {exc}")
+        return logo_url, banner_url
+
+    if isinstance(settings, dict):
+        logo_url = str(settings.get("logoUrl") or logo_url or "").strip() or logo_url
+        banner_url = str(settings.get("bannerUrl") or banner_url or "").strip() or banner_url
+
+    return logo_url, banner_url
 
 class TicketPanelSelect(discord.ui.Select):
     def __init__(self, emoji_map: Optional[dict[str, discord.Emoji]] = None):
@@ -105,7 +126,12 @@ class TicketDetailsModal(discord.ui.Modal):
         await Tickets.create_ticket(interaction, self.category, details_text)
 
 
-async def build_ticket_container(category: str, details: str, claimed_by: Optional[discord.Member] = None):
+async def build_ticket_container(
+    bot: discord.Client,
+    category: str,
+    details: str,
+    claimed_by: Optional[discord.Member] = None,
+):
 
     
     # Title mapping
@@ -155,13 +181,15 @@ async def build_ticket_container(category: str, details: str, claimed_by: Option
     else:
         claimed_text = "**Claimed by**\n*Unclaimed*"
     
+    logo_url, _ = await _resolve_brand_assets(bot)
+
     # Build container using Builder pattern
     container = ContainerBuilder()
     container.setAccentColor(Colors.INFO)
     
     # Thumbnail in top right (your logo)
     container.addAccessoryComponents(
-        ThumbnailBuilder().setMediaUrl(SERVER_LOGO)
+        ThumbnailBuilder().setMediaUrl(logo_url)
     )
     
     # Title and main description
@@ -219,11 +247,20 @@ async def build_ticket_container(category: str, details: str, claimed_by: Option
 class TicketControlView(discord.ui.LayoutView):
 
     
-    def __init__(self, category: str, details: str, ticket_num: int, user: discord.Member, claimed_by: Optional[discord.Member] = None):
+    def __init__(
+        self,
+        category: str,
+        details: str,
+        ticket_num: int,
+        user: discord.Member,
+        claimed_by: Optional[discord.Member] = None,
+        logo_url: Optional[str] = None,
+    ):
         super().__init__(timeout=None)
         self.category = category
         self.ticket_num = ticket_num
         self.creator = user
+        self.logo_url = str(logo_url or DEFAULT_SERVER_LOGO).strip() or DEFAULT_SERVER_LOGO
         
         # Build using the async helper synchronously in __init__
         # We'll build it manually here to avoid async issues
@@ -286,7 +323,7 @@ class TicketControlView(discord.ui.LayoutView):
         container.add_item(
             discord.ui.Section(
                 discord.ui.TextDisplay(header_content),
-                accessory=discord.ui.Thumbnail(SERVER_LOGO)
+                accessory=discord.ui.Thumbnail(self.logo_url)
             )
         )
         
@@ -792,6 +829,7 @@ class Tickets(BaseCog):
         setup_log.append("💾 Setup configuration saved.")
 
         emoji_map = await Tickets.ensure_panel_emojis(guild, setup_log, force_update=True)
+        logo_url, banner_url = await _resolve_brand_assets(self.bot)
 
         # ------------------------------------------------------------------
         # POST PANEL
@@ -800,7 +838,7 @@ class Tickets(BaseCog):
             try:
                 # Build Components V2 panel
                 container = discord.ui.Container(accent_color=Colors.INFO)
-                container.add_item(discord.ui.MediaGallery(discord.MediaGalleryItem(SERVER_BANNER)))
+                container.add_item(discord.ui.MediaGallery(discord.MediaGalleryItem(banner_url)))
                 container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small))
                 
                 header_content = (
@@ -812,7 +850,7 @@ class Tickets(BaseCog):
                 container.add_item(
                     discord.ui.Section(
                         discord.ui.TextDisplay(header_content),
-                        accessory=discord.ui.Thumbnail(SERVER_LOGO)
+                        accessory=discord.ui.Thumbnail(logo_url)
                     )
                 )
                 
@@ -893,6 +931,7 @@ class Tickets(BaseCog):
               
         target = channel or interaction.channel
         emoji_map = await Tickets.ensure_panel_emojis(target.guild)
+        logo_url, banner_url = await _resolve_brand_assets(self.bot)
         
         # Build Components V2 panel with banner at top
         container = discord.ui.Container(accent_color=Colors.INFO)
@@ -900,7 +939,7 @@ class Tickets(BaseCog):
         # Banner at the TOP (MediaGallery stretches to fill width)
         container.add_item(
             discord.ui.MediaGallery(
-                discord.MediaGalleryItem(SERVER_BANNER)
+                discord.MediaGalleryItem(banner_url)
             )
         )
         
@@ -917,7 +956,7 @@ class Tickets(BaseCog):
         container.add_item(
             discord.ui.Section(
                 discord.ui.TextDisplay(header_content),
-                accessory=discord.ui.Thumbnail(SERVER_LOGO)
+                accessory=discord.ui.Thumbnail(logo_url)
             )
         )
         
@@ -994,12 +1033,14 @@ class Tickets(BaseCog):
             await channel.send(f"{user.mention}")
             
             # Send Control Panel in Ticket (V2 Layout)
+            logo_url, _ = await _resolve_brand_assets(interaction.client)
             view = TicketControlView(
                 category=category,
                 details=details,
                 ticket_num=next_num,
                 user=user,
-                claimed_by=None
+                claimed_by=None,
+                logo_url=logo_url,
             )
             await channel.send(view=view)
             
@@ -1239,12 +1280,14 @@ class Tickets(BaseCog):
         await ticket.save()
         
         # Update control panel - Update existing message
+        logo_url, _ = await _resolve_brand_assets(interaction.client)
         new_view = TicketControlView(
             category=ticket.category,
             details=ticket.details or "",
             ticket_num=ticket.ticket_number,
             user=interaction.guild.get_member(int(ticket.creator_id)) or interaction.user,
-            claimed_by=interaction.user
+            claimed_by=interaction.user,
+            logo_url=logo_url,
         )
 
         if interaction.message is not None:

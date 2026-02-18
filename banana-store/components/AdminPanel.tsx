@@ -1416,6 +1416,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
         {tab === 'settings' && (
           <div className={cardClass + ' max-w-4xl space-y-3'}>
             <input value={settings.storeName} onChange={(e) => setSettings({ ...settings, storeName: e.target.value })} className={fieldClass} placeholder="Store name" />
+            <input
+              value={settings.logoUrl || ''}
+              onChange={(e) => setSettings({ ...settings, logoUrl: e.target.value })}
+              className={fieldClass}
+              placeholder="Logo URL (used on website + bot panels)"
+            />
+            <input
+              value={settings.bannerUrl || ''}
+              onChange={(e) => setSettings({ ...settings, bannerUrl: e.target.value })}
+              className={fieldClass}
+              placeholder="Banner URL (optional)"
+            />
+            <input
+              value={settings.faviconUrl || ''}
+              onChange={(e) => setSettings({ ...settings, faviconUrl: e.target.value })}
+              className={fieldClass}
+              placeholder="Favicon URL (optional)"
+            />
             <input value={settings.currency} onChange={(e) => setSettings({ ...settings, currency: e.target.value })} className={fieldClass} placeholder="Currency" />
             <input value={settings.paypalEmail} onChange={(e) => setSettings({ ...settings, paypalEmail: e.target.value })} className={fieldClass} placeholder="PayPal email" />
             <input value={settings.stripeKey} onChange={(e) => setSettings({ ...settings, stripeKey: e.target.value })} className={fieldClass} placeholder="Stripe key" />

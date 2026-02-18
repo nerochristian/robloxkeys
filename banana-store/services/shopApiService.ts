@@ -65,11 +65,51 @@ type ProductPayload = Product & {
   tiers?: Array<ProductTier & { original_price?: number }>;
 };
 
-const normalizeTier = (tier: ProductTier & { original_price?: number }): ProductTier => ({
+const readString = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
+
+const pickFirstString = (...values: unknown[]): string => {
+  for (const value of values) {
+    const candidate = readString(value);
+    if (candidate) return candidate;
+  }
+  return '';
+};
+
+const resolveCatalogImageUrl = (value: unknown): string => {
+  const raw = readString(value);
+  if (!raw) return '';
+  if (/^(data:|blob:)/i.test(raw)) return raw;
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(raw)) return raw;
+  if (raw.startsWith('//')) {
+    const protocol = typeof window !== 'undefined' ? window.location.protocol : 'https:';
+    return `${protocol}${raw}`;
+  }
+
+  const looksLikeMediaAssetId = /^img-[a-z0-9-]+$/i.test(raw);
+  if (looksLikeMediaAssetId) {
+    return STORE_API_BASE_URL ? `${STORE_API_BASE_URL}/shop/media/${raw}` : `/shop/media/${raw}`;
+  }
+
+  const normalizedPath = raw.startsWith('/') ? raw : `/${raw}`;
+  if (normalizedPath.startsWith('/media/')) {
+    const mediaPath = `/shop${normalizedPath}`;
+    return STORE_API_BASE_URL ? `${STORE_API_BASE_URL}${mediaPath}` : mediaPath;
+  }
+  if (normalizedPath.startsWith('/shop/')) {
+    return STORE_API_BASE_URL ? `${STORE_API_BASE_URL}${normalizedPath}` : normalizedPath;
+  }
+
+  return raw;
+};
+
+const normalizeTier = (tier: ProductTier & { original_price?: number } & Record<string, unknown>): ProductTier => ({
   ...tier,
   price: Number(tier.price || 0),
   originalPrice: typeof tier.originalPrice === 'number' ? tier.originalPrice : Number(tier.original_price || 0),
   stock: Number(tier.stock || 0),
+  image: resolveCatalogImageUrl(
+    pickFirstString(tier.image, tier.imageUrl, tier.image_url, tier.thumbnail)
+  ),
 });
 
 const normalizeProduct = (p: ProductPayload): Product => {
@@ -84,12 +124,27 @@ const normalizeProduct = (p: ProductPayload): Product => {
   }
 
   const tiers = Array.isArray(p.tiers) ? p.tiers.map(normalizeTier) : [];
+  const productImage = pickFirstString(
+    p.image,
+    (p as Record<string, unknown>).imageUrl,
+    (p as Record<string, unknown>).image_url,
+    (p as Record<string, unknown>).thumbnail,
+    (p as Record<string, unknown>).icon
+  );
+  const bannerImage = pickFirstString(
+    p.bannerImage,
+    (p as Record<string, unknown>).banner_image,
+    (p as Record<string, unknown>).coverImage,
+    (p as Record<string, unknown>).cover_image
+  );
 
   return {
     ...p,
     originalPrice: typeof p.originalPrice === 'number' ? p.originalPrice : Number(p.original_price || 0),
     features,
-    tiers
+    tiers,
+    image: resolveCatalogImageUrl(productImage),
+    bannerImage: resolveCatalogImageUrl(bannerImage),
   };
 };
 
@@ -186,6 +241,9 @@ const defaultStateValue = <K extends ShopStateKey>(stateKey: K): ShopStateMap[K]
   const defaults: ShopStateMap = {
     settings: {
       storeName: 'Roblox Keys',
+      logoUrl: '',
+      bannerUrl: '',
+      faviconUrl: '',
       currency: 'USD',
       paypalEmail: '',
       stripeKey: '',
@@ -223,13 +281,33 @@ export const ShopApiService = {
     writeSessionToken('');
   },
 
-  async health(): Promise<{ ok: boolean; products?: number; orders?: number }> {
+  async health(): Promise<{
+    ok: boolean;
+    products?: number;
+    orders?: number;
+    branding?: {
+      storeName?: string;
+      logoUrl?: string;
+      bannerUrl?: string;
+      faviconUrl?: string;
+    };
+  }> {
     const response = await withTimeout(resolvePath('/health'), {
       method: 'GET',
       headers: buildHeaders()
     });
     if (!response.ok) throw new Error(`Shop health request failed (${response.status})`);
-    return response.json() as Promise<{ ok: boolean; products?: number; orders?: number }>;
+    return response.json() as Promise<{
+      ok: boolean;
+      products?: number;
+      orders?: number;
+      branding?: {
+        storeName?: string;
+        logoUrl?: string;
+        bannerUrl?: string;
+        faviconUrl?: string;
+      };
+    }>;
   },
 
   async getProducts(): Promise<Product[]> {
@@ -494,7 +572,7 @@ export const ShopApiService = {
     }
     return {
       id: String(payload.asset.id),
-      url: String(payload.asset.url),
+      url: resolveCatalogImageUrl(String(payload.asset.url)),
       filename: String(payload.asset.filename || file.name || ''),
       mimeType: String(payload.asset.mimeType || file.type || ''),
       size: Number(payload.asset.size || file.size || 0),

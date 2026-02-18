@@ -24,6 +24,17 @@ interface ProductDetailProps {
   onBuyNow: (product: Product, quantity: number, tier?: ProductTier) => void;
 }
 
+const buildInlineFallback = (name: string): string => {
+  const initials = String(name || 'RK')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || '')
+    .join('') || 'RK';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0f172a"/><stop offset="100%" stop-color="#020617"/></linearGradient></defs><rect width="1200" height="675" fill="url(#bg)"/><rect x="24" y="24" width="1152" height="627" fill="none" stroke="#facc15" stroke-opacity="0.25" stroke-width="4"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="220" font-weight="900" fill="#facc15">${initials}</text></svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+};
+
 export const ProductDetail: React.FC<ProductDetailProps> = ({ product, selectedTier = null, onBack, onAddToCart, onBuyNow }) => {
   const [quantity, setQuantity] = useState(1);
   const [quantityDirection, setQuantityDirection] = useState<'up' | 'down'>('up');
@@ -39,7 +50,11 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({ product, selectedT
   const displayDuration = selectedTier?.duration || product.duration;
   const displayPrice = selectedTier ? Number(selectedTier.price || 0) : Number(product.price || 0);
   const displayOriginalPrice = selectedTier ? Number(selectedTier.originalPrice || 0) : Number(product.originalPrice || 0);
-  const detailImage = selectedTier?.image || product.image;
+  const detailImage =
+    selectedTier?.image ||
+    product.image ||
+    product.bannerImage ||
+    buildInlineFallback(selectedTier?.name || product.name);
   const usageNotice = (BRAND_CONFIG.copy.productUsageNotice || [])
     .map((line) => line.replace(/\{service\}/gi, product.type));
   const discountTarget = 10;
