@@ -2393,10 +2393,23 @@ class WebsiteBridgeServer:
             if payment_method == "paypal":
                 order_id_str = str(order_payload.get("id") or f"ord-{int(datetime.now(timezone.utc).timestamp())}")
                 paypal_automated = bool(self.paypal_client_id and self.paypal_client_secret)
+                manual_checkout_url = await self._resolve_paypal_manual_checkout_url(
+                    amount=computed_total,
+                    order_id=order_id_str,
+                )
                 if paypal_automated:
                     access_token = await self._get_paypal_access_token()
                     if not access_token:
-                        return web.json_response({"ok": False, "message": "failed to authenticate with PayPal"}, status=502)
+                        if manual_checkout_url:
+                            logger.warning("PayPal API auth failed; falling back to manual PayPal checkout URL.")
+                            return web.json_response({"ok": True, "checkoutUrl": manual_checkout_url, "manual": True})
+                        return web.json_response(
+                            {
+                                "ok": False,
+                                "message": "failed to authenticate with PayPal (check PAYPAL_CLIENT_ID/SECRET and PAYPAL_API_BASE sandbox/live)",
+                            },
+                            status=502,
+                        )
 
                     pending_token = secrets.token_urlsafe(24)
                     pending = await self._load_pending_payments()
@@ -2445,6 +2458,9 @@ class WebsiteBridgeServer:
                                 pp_data = {"raw": pp_raw}
                             if pp_resp.status >= 300:
                                 logger.error(f"PayPal order creation failed: {pp_data}")
+                                if manual_checkout_url:
+                                    logger.warning("PayPal order creation failed; falling back to manual PayPal checkout URL.")
+                                    return web.json_response({"ok": True, "checkoutUrl": manual_checkout_url, "manual": True})
                                 return web.json_response({"ok": False, "message": "failed to create PayPal order"}, status=502)
 
                     paypal_order_id = str(pp_data.get("id") or "").strip()
@@ -2461,6 +2477,9 @@ class WebsiteBridgeServer:
 
                     if not approve_url or not paypal_order_id:
                         logger.error(f"PayPal order response missing approve URL: {pp_data}")
+                        if manual_checkout_url:
+                            logger.warning("PayPal response incomplete; falling back to manual PayPal checkout URL.")
+                            return web.json_response({"ok": True, "checkoutUrl": manual_checkout_url, "manual": True})
                         return web.json_response({"ok": False, "message": "invalid PayPal order response"}, status=502)
 
                     pending[pending_token] = {
@@ -2484,10 +2503,6 @@ class WebsiteBridgeServer:
                         }
                     )
 
-                manual_checkout_url = await self._resolve_paypal_manual_checkout_url(
-                    amount=computed_total,
-                    order_id=order_id_str,
-                )
                 if not manual_checkout_url:
                     return web.json_response({"ok": False, "message": "PayPal is not configured"}, status=503)
                 return web.json_response({"ok": True, "checkoutUrl": manual_checkout_url, "manual": True})
