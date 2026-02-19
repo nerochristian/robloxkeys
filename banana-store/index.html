@@ -75,49 +75,35 @@
       }
     }
 
-    @keyframes goldBlobDrift {
+    @keyframes goldBlobFlow {
       0% {
-        transform: translate3d(-4%, 2%, 0) scale(1);
+        transform: translate3d(-6%, 4%, 0) scale(1);
       }
 
-      35% {
-        transform: translate3d(3%, -3%, 0) scale(1.08);
+      33% {
+        transform: translate3d(4%, -3%, 0) scale(1.12);
       }
 
-      70% {
-        transform: translate3d(-2%, 3%, 0) scale(0.96);
+      66% {
+        transform: translate3d(-2%, 5%, 0) scale(0.94);
       }
 
       100% {
-        transform: translate3d(4%, -2%, 0) scale(1.05);
+        transform: translate3d(7%, -4%, 0) scale(1.08);
       }
     }
 
-    @keyframes goldBlobPulse {
+    @keyframes goldRibbonSweep {
       0% {
-        opacity: 0.46;
+        transform: translate3d(-4%, -3%, 0) scale(1.02);
       }
 
       50% {
-        opacity: 0.62;
+        transform: translate3d(3%, 2%, 0) scale(1.08);
       }
 
       100% {
-        opacity: 0.46;
-      }
-    }
-
-    @keyframes goldRibbonFlow {
-      0% {
-        transform: translate3d(-2%, -1%, 0) scale(1);
-      }
-
-      50% {
-        transform: translate3d(2%, 1%, 0) scale(1.04);
-      }
-
-      100% {
-        transform: translate3d(-1%, 2%, 0) scale(0.98);
+        transform: translate3d(-2%, 4%, 0) scale(0.98);
       }
     }
 
@@ -234,7 +220,7 @@
       font-family: 'Inter', sans-serif;
       background-color: #050505;
       background-image:
-        radial-gradient(circle at 50% -20%, rgba(250, 204, 21, 0.14) 0%, rgba(250, 204, 21, 0.04) 24%, rgba(5, 5, 5, 0) 56%),
+        radial-gradient(circle at 50% -22%, rgba(250, 204, 21, 0.16) 0%, rgba(250, 204, 21, 0.04) 24%, rgba(5, 5, 5, 0) 58%),
         linear-gradient(180deg, #060603 0%, #030303 48%, #020202 100%);
       background-size: 100% 100%, 100% 100%;
       color: #f8fafc;
@@ -247,15 +233,14 @@
     body::before {
       content: '';
       position: fixed;
-      inset: -16%;
+      inset: -20%;
       background-image:
-        radial-gradient(42vw 35vh at 8% 76%, rgba(250, 204, 21, 0.50) 0%, rgba(250, 204, 21, 0.18) 38%, rgba(250, 204, 21, 0.03) 66%, transparent 74%),
-        radial-gradient(36vw 30vh at 86% 14%, rgba(250, 204, 21, 0.46) 0%, rgba(250, 204, 21, 0.16) 39%, rgba(250, 204, 21, 0.02) 68%, transparent 76%),
-        radial-gradient(34vw 28vh at 88% 74%, rgba(250, 204, 21, 0.38) 0%, rgba(250, 204, 21, 0.12) 41%, rgba(250, 204, 21, 0.02) 70%, transparent 78%),
-        radial-gradient(32vw 26vh at 20% 20%, rgba(250, 204, 21, 0.26) 0%, rgba(250, 204, 21, 0.08) 45%, transparent 75%);
-      filter: blur(18px);
-      opacity: 0.52;
-      animation: goldBlobDrift 40s ease-in-out infinite alternate, goldBlobPulse 14s ease-in-out infinite;
+        radial-gradient(58vw 42vh at 4% 78%, rgba(250, 204, 21, 0.62) 0%, rgba(250, 204, 21, 0.24) 38%, rgba(250, 204, 21, 0.06) 62%, transparent 74%),
+        radial-gradient(54vw 38vh at 98% 22%, rgba(250, 204, 21, 0.60) 0%, rgba(250, 204, 21, 0.22) 40%, rgba(250, 204, 21, 0.04) 64%, transparent 76%),
+        radial-gradient(44vw 32vh at 86% 86%, rgba(250, 204, 21, 0.44) 0%, rgba(250, 204, 21, 0.16) 42%, rgba(250, 204, 21, 0.03) 66%, transparent 78%);
+      filter: blur(28px);
+      opacity: 0.62;
+      animation: goldBlobFlow 22s ease-in-out infinite alternate;
       pointer-events: none;
       z-index: 0;
     }
@@ -263,14 +248,15 @@
     body::after {
       content: '';
       position: fixed;
-      inset: -10%;
+      inset: -14%;
       background-image:
-        radial-gradient(120% 64% at 60% 112%, rgba(250, 204, 21, 0.34) 0 37.6%, rgba(250, 204, 21, 0.14) 39.6%, rgba(250, 204, 21, 0.04) 46.6%, transparent 56%),
-        radial-gradient(128% 68% at 40% -12%, rgba(250, 204, 21, 0.19) 0 36.4%, rgba(250, 204, 21, 0.07) 39.4%, transparent 53%);
+        radial-gradient(120% 68% at 0% 100%, rgba(250, 204, 21, 0.30) 0 41%, rgba(250, 204, 21, 0.12) 43%, rgba(250, 204, 21, 0.03) 50%, transparent 58%),
+        radial-gradient(122% 68% at 100% 0%, rgba(250, 204, 21, 0.26) 0 39%, rgba(250, 204, 21, 0.10) 42%, rgba(250, 204, 21, 0.03) 49%, transparent 57%),
+        radial-gradient(140% 80% at 50% 56%, rgba(250, 204, 21, 0.12) 0%, rgba(250, 204, 21, 0.04) 36%, transparent 62%);
       background-repeat: no-repeat;
-      filter: blur(6px);
-      opacity: 0.42;
-      animation: goldRibbonFlow 32s ease-in-out infinite alternate;
+      filter: blur(10px);
+      opacity: 0.5;
+      animation: goldRibbonSweep 18s ease-in-out infinite alternate;
       pointer-events: none;
       z-index: 0;
     }
