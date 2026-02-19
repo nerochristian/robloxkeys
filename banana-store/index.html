@@ -75,6 +75,36 @@
       }
     }
 
+    @keyframes yellowWaves {
+      0% {
+        background-position:
+          center top,
+          center 0px,
+          center 120px;
+      }
+
+      100% {
+        background-position:
+          center top,
+          center 280px,
+          center 420px;
+      }
+    }
+
+    @keyframes yellowWavesAlt {
+      0% {
+        background-position:
+          center -80px,
+          center 40px;
+      }
+
+      100% {
+        background-position:
+          center 180px,
+          center 300px;
+      }
+    }
+
     @keyframes qtySlideUp {
       from {
         opacity: 0;
@@ -188,9 +218,9 @@
       font-family: 'Inter', sans-serif;
       background-color: #050505;
       background-image:
-        linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-      background-size: 45px 45px;
+        radial-gradient(circle at 50% -10%, rgba(250, 204, 21, 0.24) 0%, rgba(250, 204, 21, 0.08) 24%, rgba(5, 5, 5, 0) 58%),
+        linear-gradient(180deg, #0a0903 0%, #050505 45%, #040404 100%);
+      background-size: 100% 100%, 100% 100%;
       color: #f8fafc;
       min-height: 100vh;
       background-attachment: fixed;
@@ -202,22 +232,29 @@
       content: '';
       position: fixed;
       inset: 0;
-      background: radial-gradient(circle at var(--mouse-x) var(--mouse-y),
-          rgba(250, 204, 21, 0.15) 0%,
-          transparent 50%);
+      background-image:
+        radial-gradient(140% 80% at 50% 115%, rgba(250, 204, 21, 0.18) 0 30%, transparent 31%),
+        radial-gradient(130% 75% at 50% 120%, rgba(250, 204, 21, 0.14) 0 29%, transparent 30%),
+        radial-gradient(120% 70% at 50% 125%, rgba(250, 204, 21, 0.11) 0 28%, transparent 29%);
+      background-repeat: repeat-y;
+      background-size: 100% 280px, 100% 280px, 100% 280px;
+      opacity: 0.55;
+      animation: yellowWaves 18s linear infinite;
       pointer-events: none;
-      z-index: 1;
-      transition: background 0.15s ease-out;
+      z-index: 0;
     }
 
     body::after {
       content: '';
       position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 40vh;
-      background: radial-gradient(circle at 50% -10%, rgba(250, 204, 21, 0.1) 0%, transparent 100%);
+      inset: 0;
+      background-image:
+        radial-gradient(120% 70% at 50% 120%, rgba(250, 204, 21, 0.08) 0 32%, transparent 33%),
+        radial-gradient(100% 58% at 50% 122%, rgba(250, 204, 21, 0.06) 0 33%, transparent 34%);
+      background-repeat: repeat-y;
+      background-size: 100% 260px, 100% 260px;
+      opacity: 0.45;
+      animation: yellowWavesAlt 24s linear infinite reverse;
       pointer-events: none;
       z-index: 0;
     }
