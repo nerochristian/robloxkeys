@@ -75,33 +75,49 @@
       }
     }
 
-    @keyframes yellowWaves {
+    @keyframes goldBlobDrift {
       0% {
-        background-position:
-          center top,
-          center 0px,
-          center 120px;
+        transform: translate3d(-4%, 2%, 0) scale(1);
+      }
+
+      35% {
+        transform: translate3d(3%, -3%, 0) scale(1.08);
+      }
+
+      70% {
+        transform: translate3d(-2%, 3%, 0) scale(0.96);
       }
 
       100% {
-        background-position:
-          center top,
-          center 280px,
-          center 420px;
+        transform: translate3d(4%, -2%, 0) scale(1.05);
       }
     }
 
-    @keyframes yellowWavesAlt {
+    @keyframes goldBlobPulse {
       0% {
-        background-position:
-          center -80px,
-          center 40px;
+        opacity: 0.46;
+      }
+
+      50% {
+        opacity: 0.62;
       }
 
       100% {
-        background-position:
-          center 180px,
-          center 300px;
+        opacity: 0.46;
+      }
+    }
+
+    @keyframes goldRibbonFlow {
+      0% {
+        transform: translate3d(-2%, -1%, 0) scale(1);
+      }
+
+      50% {
+        transform: translate3d(2%, 1%, 0) scale(1.04);
+      }
+
+      100% {
+        transform: translate3d(-1%, 2%, 0) scale(0.98);
       }
     }
 
@@ -218,8 +234,8 @@
       font-family: 'Inter', sans-serif;
       background-color: #050505;
       background-image:
-        radial-gradient(circle at 50% -10%, rgba(250, 204, 21, 0.24) 0%, rgba(250, 204, 21, 0.08) 24%, rgba(5, 5, 5, 0) 58%),
-        linear-gradient(180deg, #0a0903 0%, #050505 45%, #040404 100%);
+        radial-gradient(circle at 50% -20%, rgba(250, 204, 21, 0.14) 0%, rgba(250, 204, 21, 0.04) 24%, rgba(5, 5, 5, 0) 56%),
+        linear-gradient(180deg, #060603 0%, #030303 48%, #020202 100%);
       background-size: 100% 100%, 100% 100%;
       color: #f8fafc;
       min-height: 100vh;
@@ -231,15 +247,15 @@
     body::before {
       content: '';
       position: fixed;
-      inset: 0;
+      inset: -16%;
       background-image:
-        radial-gradient(140% 80% at 50% 115%, rgba(250, 204, 21, 0.18) 0 30%, transparent 31%),
-        radial-gradient(130% 75% at 50% 120%, rgba(250, 204, 21, 0.14) 0 29%, transparent 30%),
-        radial-gradient(120% 70% at 50% 125%, rgba(250, 204, 21, 0.11) 0 28%, transparent 29%);
-      background-repeat: repeat-y;
-      background-size: 100% 280px, 100% 280px, 100% 280px;
-      opacity: 0.55;
-      animation: yellowWaves 18s linear infinite;
+        radial-gradient(42vw 35vh at 8% 76%, rgba(250, 204, 21, 0.50) 0%, rgba(250, 204, 21, 0.18) 38%, rgba(250, 204, 21, 0.03) 66%, transparent 74%),
+        radial-gradient(36vw 30vh at 86% 14%, rgba(250, 204, 21, 0.46) 0%, rgba(250, 204, 21, 0.16) 39%, rgba(250, 204, 21, 0.02) 68%, transparent 76%),
+        radial-gradient(34vw 28vh at 88% 74%, rgba(250, 204, 21, 0.38) 0%, rgba(250, 204, 21, 0.12) 41%, rgba(250, 204, 21, 0.02) 70%, transparent 78%),
+        radial-gradient(32vw 26vh at 20% 20%, rgba(250, 204, 21, 0.26) 0%, rgba(250, 204, 21, 0.08) 45%, transparent 75%);
+      filter: blur(18px);
+      opacity: 0.52;
+      animation: goldBlobDrift 40s ease-in-out infinite alternate, goldBlobPulse 14s ease-in-out infinite;
       pointer-events: none;
       z-index: 0;
     }
@@ -247,14 +263,14 @@
     body::after {
       content: '';
       position: fixed;
-      inset: 0;
+      inset: -10%;
       background-image:
-        radial-gradient(120% 70% at 50% 120%, rgba(250, 204, 21, 0.08) 0 32%, transparent 33%),
-        radial-gradient(100% 58% at 50% 122%, rgba(250, 204, 21, 0.06) 0 33%, transparent 34%);
-      background-repeat: repeat-y;
-      background-size: 100% 260px, 100% 260px;
-      opacity: 0.45;
-      animation: yellowWavesAlt 24s linear infinite reverse;
+        radial-gradient(120% 64% at 60% 112%, rgba(250, 204, 21, 0.34) 0 37.6%, rgba(250, 204, 21, 0.14) 39.6%, rgba(250, 204, 21, 0.04) 46.6%, transparent 56%),
+        radial-gradient(128% 68% at 40% -12%, rgba(250, 204, 21, 0.19) 0 36.4%, rgba(250, 204, 21, 0.07) 39.4%, transparent 53%);
+      background-repeat: no-repeat;
+      filter: blur(6px);
+      opacity: 0.42;
+      animation: goldRibbonFlow 32s ease-in-out infinite alternate;
       pointer-events: none;
       z-index: 0;
     }
