@@ -939,6 +939,39 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
     }
   };
 
+  const resolveGatewayKey = (methodId: string): 'card' | 'paypal' | 'crypto' | null => {
+    const normalized = String(methodId || '').trim().toLowerCase();
+    if (normalized === 'pm-card' || normalized === 'card') return 'card';
+    if (normalized === 'pm-paypal' || normalized === 'paypal') return 'paypal';
+    if (normalized === 'pm-crypto' || normalized === 'crypto') return 'crypto';
+    return null;
+  };
+
+  const isMethodEnabledInAdmin = (gatewayKey: 'card' | 'paypal' | 'crypto'): boolean => {
+    const methodId = gatewayKey === 'card' ? 'pm-card' : gatewayKey === 'paypal' ? 'pm-paypal' : 'pm-crypto';
+    const row = paymentMethods.find((item) => resolveGatewayKey(item.id) === gatewayKey || item.id === methodId);
+    return row ? Boolean(row.enabled) : true;
+  };
+
+  const getMethodStatus = (gatewayKey: 'card' | 'paypal' | 'crypto') => {
+    const gateway = gatewayMethods[gatewayKey];
+    const adminEnabled = isMethodEnabledInAdmin(gatewayKey);
+    const modeLabel =
+      gatewayKey === 'card'
+        ? 'Stripe Auto'
+        : gateway.automated
+          ? (gatewayKey === 'paypal' ? 'PayPal API Auto' : 'OxaPay Auto')
+          : 'Manual';
+
+    if (!adminEnabled) {
+      return { label: 'Disabled in admin', className: 'bg-red-500/20 text-red-300 border border-red-500/30', modeLabel };
+    }
+    if (!gateway.enabled) {
+      return { label: 'Not configured', className: 'bg-white/10 text-yellow-100/70 border border-white/20', modeLabel };
+    }
+    return { label: 'Live', className: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30', modeLabel };
+  };
+
   const deleteTeamMemberById = async (id: string) => {
     try {
       await setRemoteState('team', team.filter((item) => item.id !== id));
@@ -1360,14 +1393,34 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
                 Real checkout status is loaded from API configuration. Card: `STRIPE_SECRET_KEY`. PayPal (auto): `PAYPAL_CLIENT_ID` + `PAYPAL_CLIENT_SECRET`. PayPal (manual fallback): `PAYPAL_CHECKOUT_URL` or Settings `PayPal email/pay link`. Crypto auto: `OXAPAY_MERCHANT_API_KEY`.
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="rounded-lg bg-white/5 p-3"><div className="text-xs uppercase text-yellow-200/60">Card (Stripe)</div><div className="font-bold">{gatewayMethods.card.enabled ? 'Configured' : 'Not configured'}</div></div>
-                <div className="rounded-lg bg-white/5 p-3"><div className="text-xs uppercase text-yellow-200/60">PayPal</div><div className="font-bold">{gatewayMethods.paypal.enabled ? (gatewayMethods.paypal.automated ? 'Configured (API auto)' : 'Configured (manual)') : 'Not configured'}</div></div>
-                <div className="rounded-lg bg-white/5 p-3"><div className="text-xs uppercase text-yellow-200/60">Crypto</div><div className="font-bold">{gatewayMethods.crypto.enabled ? (gatewayMethods.crypto.automated ? 'Configured (OxaPay auto)' : 'Configured (manual)') : 'Not configured'}</div></div>
+                {(['card', 'paypal', 'crypto'] as const).map((gatewayKey) => {
+                  const status = getMethodStatus(gatewayKey);
+                  const label = gatewayKey === 'card' ? 'Card (Stripe)' : gatewayKey === 'paypal' ? 'PayPal' : 'Crypto';
+                  return (
+                    <div key={gatewayKey} className="rounded-lg bg-white/5 p-3">
+                      <div className="text-xs uppercase text-yellow-200/60">{label}</div>
+                      <div className="mt-1 flex items-center gap-2">
+                        <span className={`inline-flex rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wider ${status.className}`}>{status.label}</span>
+                        <span className="text-xs text-yellow-100/70">{status.modeLabel}</span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
               {paymentMethods.map((method) => (
                 <div key={method.id} className="bg-white/5 rounded-lg p-3 flex items-center justify-between gap-3">
                   <div className="flex-1">
-                    <div className="font-semibold">{method.name}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="font-semibold">{method.name}</div>
+                      {(() => {
+                        const gatewayKey = resolveGatewayKey(method.id);
+                        if (!gatewayKey) return null;
+                        const status = getMethodStatus(gatewayKey);
+                        return (
+                          <span className={`inline-flex rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wider ${status.className}`}>{status.label}</span>
+                        );
+                      })()}
+                    </div>
                     <input
                       value={method.instructions}
                       onChange={(e) => setPaymentMethods((prev) => prev.map((item) => item.id === method.id ? { ...item, instructions: e.target.value } : item))}

@@ -329,25 +329,7 @@ class WebsiteBridgeServer:
 
     @web.middleware
     async def _rate_limit_middleware(self, request: web.Request, handler):
-        if request.method == "OPTIONS":
-            return await handler(request)
-        path = request.path
-        ip = self._get_client_ip(request)
-        auth_paths = {"/shop/auth/login", "/shop/auth/register", "/shop/auth/verify-otp"}
-        payment_paths = {"/shop/buy", "/shop/payments/create", "/shop/payments/confirm"}
-        if path in auth_paths:
-            allowed, retry_after = self._check_rate_limit(ip, self._rate_limit_auth)
-        elif path in payment_paths:
-            allowed, retry_after = self._check_rate_limit(ip, self._rate_limit_payment)
-        else:
-            allowed, retry_after = self._check_rate_limit(ip, self._rate_limit_general)
-        if not allowed:
-            logger.warning(f"Rate limit exceeded for {ip} on {path}")
-            return web.json_response(
-                {"ok": False, "message": "too many requests, please try again later"},
-                status=429,
-                headers={"Retry-After": str(retry_after)},
-            )
+        # Rate limiting intentionally disabled.
         return await handler(request)
 
     async def _verify_turnstile(self, request: web.Request) -> bool:
