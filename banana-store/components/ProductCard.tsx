@@ -61,13 +61,18 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onView }) => 
 
   const currentImage = imageCandidates[imageCandidateIndex] || fallbackImage;
   
-  const getHeaderGradient = (type: ServiceType) => {
+  const getHeaderGradientStyle = (type: ServiceType): React.CSSProperties => {
     switch (type) {
-      case ServiceType.NETFLIX: return 'from-yellow-300/70 to-yellow-700/90';
-      case ServiceType.DISNEY: return 'from-amber-300/70 to-yellow-800/90';
-      case ServiceType.CRUNCHYROLL: return 'from-yellow-400/70 to-amber-700/90';
-      case ServiceType.BUNDLE: return 'from-yellow-300/80 to-yellow-600/90';
-      default: return 'from-yellow-500/70 to-zinc-900/90';
+      case ServiceType.NETFLIX:
+        return { background: 'linear-gradient(135deg, rgba(253,224,71,0.72) 0%, rgba(161,98,7,0.88) 100%)' };
+      case ServiceType.DISNEY:
+        return { background: 'linear-gradient(135deg, rgba(252,211,77,0.72) 0%, rgba(120,53,15,0.9) 100%)' };
+      case ServiceType.CRUNCHYROLL:
+        return { background: 'linear-gradient(135deg, rgba(250,204,21,0.74) 0%, rgba(146,64,14,0.9) 100%)' };
+      case ServiceType.BUNDLE:
+        return { background: 'linear-gradient(135deg, rgba(250,204,21,0.8) 0%, rgba(202,138,4,0.9) 100%)' };
+      default:
+        return { background: 'linear-gradient(135deg, rgba(250,204,21,0.78) 0%, rgba(39,39,42,0.92) 100%)' };
     }
   };
 
@@ -85,7 +90,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onView }) => 
       )}
 
       {/* Visual Header - 16:9 */}
-      <div className={`relative flex aspect-square w-full items-center justify-center overflow-hidden border-b border-white/5 bg-gradient-to-br ${getHeaderGradient(product.type)} md:aspect-square md:w-[42%] md:border-b-0 md:border-r`}>
+      <div
+        className="relative flex aspect-square w-full items-center justify-center overflow-hidden border-b border-white/5 md:aspect-square md:w-[42%] md:border-b-0 md:border-r"
+        style={getHeaderGradientStyle(product.type)}
+      >
         {/* Top-Left Category Badge */}
         <div className="absolute left-3 top-3 flex items-center gap-2 rounded-lg border border-white/10 bg-black/50 px-2.5 py-1.5 backdrop-blur-lg transition-transform duration-500 group-hover:translate-x-1 sm:left-4 sm:top-4">
           {badgeIcon === 'key' ? (
