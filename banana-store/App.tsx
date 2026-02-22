@@ -758,8 +758,8 @@ export default function App() {
               </div>
             )}
             <Hero />
-            <ProductList products={products} onView={handleViewProduct} onBuyNow={handleBuyNow} themeBlend={storeThemeRatio} />
             <Features />
+            <ProductList products={products} onView={handleViewProduct} onBuyNow={handleBuyNow} themeBlend={storeThemeRatio} />
           </div>
         )}
         {view === 'product-detail' && selectedProduct && (

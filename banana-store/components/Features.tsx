@@ -9,17 +9,17 @@ export const Features: React.FC = () => {
     {
       icon: <Zap className="h-6 w-6 text-[#facc15]" />,
       title: 'Who We Are',
-      description: 'A Roblox key storefront focused on fast delivery, clean purchase flows, and reliable key management.'
+      description: 'We run a Roblox executor key store built for fast delivery, secure checkout, and dependable key access.'
     },
     {
       icon: <Shield className="h-6 w-6 text-[#facc15]" />,
       title: 'Who We Serve',
-      description: 'Players, resellers, and teams that need instant Roblox executor keys with clear tiers and support.'
+      description: 'Designed for Roblox users, resellers, and teams who need clear tiers, stable keys, and responsive support.'
     },
     {
       icon: <Headphones className="h-6 w-6 text-[#facc15]" />,
       title: 'How Our Products Work',
-      description: 'These products are Roblox executor keys. Pick a tier, pay, then your key is delivered to Member Vault.'
+      description: 'Choose a tier, complete payment, and your Roblox executor key is delivered instantly to your Member Vault.'
     }
   ];
 
@@ -50,17 +50,17 @@ export const Features: React.FC = () => {
           ))}
         </div>
 
-        <div className="mx-auto mt-5 max-w-7xl rounded-2xl border border-[#facc15]/30 bg-[#0b0b0b]/70 p-5 text-left backdrop-blur-md sm:mt-6 sm:p-6">
+        <div className="mx-auto mt-5 max-w-7xl rounded-2xl border border-[#facc15]/30 bg-[#0b0b0b]/70 p-5 text-center backdrop-blur-md sm:mt-6 sm:p-6">
           <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#facc15]">Contact</p>
-          <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs font-semibold leading-relaxed text-white/75 sm:text-sm">
+          <div className="mt-3 flex flex-col items-center gap-4">
+            <p className="max-w-3xl text-xs font-semibold leading-relaxed text-white/75 sm:text-sm">
               Need help before or after purchase? Contact support for order issues, tier guidance, or key delivery help.
             </p>
             <a
               href={supportHref}
               target={externalSupport ? '_blank' : undefined}
               rel={externalSupport ? 'noreferrer noopener' : undefined}
-              className="inline-flex w-full items-center justify-center rounded-xl border border-[#facc15]/40 bg-[#facc15]/20 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-[#facc15] transition-all hover:bg-[#facc15]/30 sm:w-auto"
+              className="inline-flex min-w-[200px] items-center justify-center rounded-xl border border-[#facc15]/40 bg-[#facc15]/20 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-[#facc15] transition-all hover:bg-[#facc15]/30"
             >
               Contact Support
             </a>
