@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Mail, Lock, UserPlus, ArrowLeft, LayoutGrid, LogIn, ShieldCheck, KeyRound } from 'lucide-react';
+import { Mail, Lock, UserPlus, ArrowLeft, LayoutGrid, LogIn, KeyRound } from 'lucide-react';
 import type { User } from '../services/storageService';
 import { BRAND_CONFIG } from '../config/brandConfig';
 import { ShopApiService } from '../services/shopApiService';
@@ -97,10 +97,6 @@ export const Auth: React.FC<AuthProps> = ({ onAuthComplete, onBack }) => {
       </button>
 
       <div className="relative z-10 w-full max-w-md overflow-hidden rounded-[32px] border border-white/5 bg-[#0a0a0a] p-6 shadow-2xl animate-reveal sm:rounded-[48px] sm:p-12">
-        <div className="absolute right-0 top-0 p-8 opacity-10">
-          <ShieldCheck className="h-24 w-24 text-[#facc15]" />
-        </div>
-
         <div className="relative mb-10 text-center">
           <div className="mx-auto mb-6 flex h-20 w-20 rotate-3 items-center justify-center overflow-hidden rounded-2xl bg-[#facc15] shadow-xl shadow-yellow-400/20">
             {BRAND_CONFIG.assets.logoUrl && !logoFailed ? (
