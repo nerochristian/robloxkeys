@@ -175,8 +175,15 @@ class WebsiteBridgeServer:
         self.paypal_client_secret = (os.getenv("PAYPAL_CLIENT_SECRET") or "").strip()
         self.paypal_api_base = (os.getenv("PAYPAL_API_BASE") or "https://api-m.paypal.com").strip().rstrip("/")
         self.paypal_checkout_url = (os.getenv("PAYPAL_CHECKOUT_URL") or "").strip()
+        self.paypal_force_manual = self._env_bool("PAYPAL_FORCE_MANUAL", default=False)
+        self.paypal_restricted_backoff_seconds = max(
+            60,
+            self._to_int(os.getenv("PAYPAL_RESTRICTED_BACKOFF_SECONDS"), default=900) or 900,
+        )
         self._paypal_access_token: str = ""
         self._paypal_token_expires_at: float = 0.0
+        self._paypal_restricted_until: float = 0.0
+        self._paypal_restricted_issue: str = ""
         self.crypto_checkout_url = (os.getenv("CRYPTO_CHECKOUT_URL") or "").strip()
         self.oxapay_merchant_api_key = (os.getenv("OXAPAY_MERCHANT_API_KEY") or "").strip()
         self.oxapay_api_url = (os.getenv("OXAPAY_API_URL") or "https://api.oxapay.com").strip().rstrip("/")
@@ -1393,11 +1400,47 @@ class WebsiteBridgeServer:
             return ""
         return self._paypal_manual_url_from_source(paypal_setting, amount=amount, order_id=order_id)
 
+    def _paypal_automated_ready(self) -> tuple[bool, str]:
+        if self.paypal_force_manual:
+            return False, "forced_manual"
+        if not self.paypal_client_id or not self.paypal_client_secret:
+            return False, "credentials_missing"
+        now = datetime.now(timezone.utc).timestamp()
+        if now < self._paypal_restricted_until:
+            return False, self._paypal_restricted_issue or "temporarily_restricted"
+        return True, ""
+
+    def _extract_paypal_error(self, payload: Any) -> tuple[str, str, str]:
+        issue = ""
+        description = ""
+        debug_id = ""
+        if isinstance(payload, dict):
+            debug_id = str(payload.get("debug_id") or payload.get("debugId") or "").strip()
+            details = payload.get("details")
+            if isinstance(details, list):
+                for row in details:
+                    if not isinstance(row, dict):
+                        continue
+                    issue = str(row.get("issue") or "").strip()
+                    description = str(row.get("description") or "").strip()
+                    if issue or description:
+                        break
+            if not description:
+                description = str(payload.get("message") or "").strip()
+        return issue, description, debug_id
+
+    def _set_paypal_restricted_backoff(self, issue: str) -> None:
+        self._paypal_restricted_issue = str(issue or "").strip().lower() or "temporarily_restricted"
+        self._paypal_restricted_until = (
+            datetime.now(timezone.utc).timestamp() + float(self.paypal_restricted_backoff_seconds)
+        )
+        self._invalidate_cache("payment_methods")
+
     async def _compute_payment_methods(self) -> dict[str, dict[str, bool]]:
         toggles = await self._load_payment_method_toggles()
 
         card_enabled = bool(self.stripe_secret_key) and toggles.get("pm-card", True)
-        paypal_automated = bool(self.paypal_client_id and self.paypal_client_secret)
+        paypal_automated, _ = self._paypal_automated_ready()
         paypal_manual_url = await self._resolve_paypal_manual_checkout_url()
         paypal_enabled = (paypal_automated or bool(paypal_manual_url)) and toggles.get("pm-paypal", True)
         crypto_automated = bool(self.oxapay_merchant_api_key)
@@ -2425,7 +2468,7 @@ class WebsiteBridgeServer:
 
             if payment_method == "paypal":
                 order_id_str = str(order_payload.get("id") or f"ord-{int(datetime.now(timezone.utc).timestamp())}")
-                paypal_automated = bool(self.paypal_client_id and self.paypal_client_secret)
+                paypal_automated, paypal_mode_reason = self._paypal_automated_ready()
                 manual_checkout_url = await self._resolve_paypal_manual_checkout_url(
                     amount=computed_total,
                     order_id=order_id_str,
@@ -2491,10 +2534,27 @@ class WebsiteBridgeServer:
                                 pp_data = {"raw": pp_raw}
                             if pp_resp.status >= 300:
                                 logger.error(f"PayPal order creation failed: {pp_data}")
+                                issue, description, debug_id = self._extract_paypal_error(pp_data)
+                                if issue.upper() == "PAYEE_ACCOUNT_RESTRICTED":
+                                    self._set_paypal_restricted_backoff("payee_account_restricted")
                                 if manual_checkout_url:
                                     logger.warning("PayPal order creation failed; falling back to manual PayPal checkout URL.")
                                     return web.json_response({"ok": True, "checkoutUrl": manual_checkout_url, "manual": True})
-                                return web.json_response({"ok": False, "message": "failed to create PayPal order"}, status=502)
+                                if issue.upper() == "PAYEE_ACCOUNT_RESTRICTED":
+                                    suffix = f" (debug_id: {debug_id})" if debug_id else ""
+                                    return web.json_response(
+                                        {
+                                            "ok": False,
+                                            "message": "PayPal merchant account is restricted. Resolve it in PayPal first, or configure manual PayPal checkout in admin Settings." + suffix,
+                                        },
+                                        status=502,
+                                    )
+                                detail_text = description or "failed to create PayPal order"
+                                if issue:
+                                    detail_text = f"{issue}: {detail_text}"
+                                if debug_id:
+                                    detail_text = f"{detail_text} (debug_id: {debug_id})"
+                                return web.json_response({"ok": False, "message": detail_text}, status=502)
 
                     paypal_order_id = str(pp_data.get("id") or "").strip()
                     approve_url = ""
@@ -2537,6 +2597,19 @@ class WebsiteBridgeServer:
                     )
 
                 if not manual_checkout_url:
+                    if paypal_mode_reason in {"payee_account_restricted", "temporarily_restricted"}:
+                        return web.json_response(
+                            {
+                                "ok": False,
+                                "message": "PayPal automated checkout is temporarily disabled because the merchant account is restricted. Configure manual PayPal checkout in admin Settings (PayPal email/pay link).",
+                            },
+                            status=503,
+                        )
+                    if paypal_mode_reason == "forced_manual":
+                        return web.json_response(
+                            {"ok": False, "message": "PayPal manual mode is forced, but no manual PayPal URL/email is configured."},
+                            status=503,
+                        )
                     return web.json_response({"ok": False, "message": "PayPal is not configured"}, status=503)
                 return web.json_response({"ok": True, "checkoutUrl": manual_checkout_url, "manual": True})
 
