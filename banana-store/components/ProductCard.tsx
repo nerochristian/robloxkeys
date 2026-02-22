@@ -43,6 +43,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onView, theme
   const badgeIcon = (product.cardBadgeIcon || 'grid').toLowerCase();
   const badgeLabel = (product.cardBadgeLabel || (product.type === ServiceType.BUNDLE ? 'BUNDLE' : 'ACCOUNT')).trim();
   const fallbackImage = React.useMemo(() => buildInlineFallback(product.name), [product.name]);
+  const cardBackground = String(product.bannerImage || '').trim();
   const imageCandidates = React.useMemo(() => {
     const items = [
       // Product cards should use product image only (never tier images).
@@ -100,6 +101,20 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onView, theme
       onClick={() => onView(product)}
       className="relative flex h-full w-full flex-col overflow-hidden rounded-3xl border border-white/5 bg-[#0a0a0a]/80 text-left backdrop-blur-md transition-all duration-500 card-glow group md:flex-row"
     >
+      {cardBackground && (
+        <div className="pointer-events-none absolute inset-0">
+          <img
+            src={cardBackground}
+            alt=""
+            aria-hidden="true"
+            loading="lazy"
+            decoding="async"
+            className="h-full w-full object-cover opacity-[0.16] saturate-125 contrast-105"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(0,0,0,0.86)_0%,rgba(0,0,0,0.72)_44%,rgba(0,0,0,0.9)_100%)]" />
+        </div>
+      )}
+
       {/* Featured Badge Overlay */}
       {product.featured && (
         <div className="absolute top-4 right-4 z-10 bg-[#facc15]/90 text-black p-2 rounded-xl shadow-[0_0_20px_rgba(250,204,21,0.35)] animate-pulse">

@@ -1890,7 +1890,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
                     </div>
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-yellow-200/70">Banner URL (optional)</label>
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-yellow-200/70">Banner / Card Background URL (optional)</label>
                     <div className="space-y-2">
                       <input value={draft.bannerImage || ''} onChange={(e) => setDraft({ ...draft, bannerImage: e.target.value })} className={fieldClass} placeholder="https://... or upload below" />
                       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
