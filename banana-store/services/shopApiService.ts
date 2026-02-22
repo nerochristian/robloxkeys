@@ -228,6 +228,12 @@ const normalizeProduct = (p: ProductPayload): Product => {
     (p as Record<string, unknown>).coverImage,
     (p as Record<string, unknown>).cover_image
   );
+  const cardBackdropImage = pickFirstString(
+    p.cardBackdropImage,
+    (p as Record<string, unknown>).card_backdrop_image,
+    (p as Record<string, unknown>).backdropImage,
+    (p as Record<string, unknown>).backdrop_image
+  );
 
   return {
     ...p,
@@ -237,6 +243,7 @@ const normalizeProduct = (p: ProductPayload): Product => {
     tiers,
     image: resolveCatalogImageUrl(productImage),
     bannerImage: resolveCatalogImageUrl(bannerImage),
+    cardBackdropImage: resolveCatalogImageUrl(cardBackdropImage),
   };
 };
 

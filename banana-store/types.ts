@@ -32,6 +32,7 @@ export interface Product {
   detailedDescription?: string[];
   image: string;
   bannerImage?: string;
+  cardBackdropImage?: string;
   category?: string;
   group?: string;
   visibility?: 'public' | 'private' | 'hidden';

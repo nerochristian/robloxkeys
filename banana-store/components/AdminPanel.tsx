@@ -81,6 +81,7 @@ const newProduct = (): Product => ({
   detailedDescription: [],
   image: '',
   bannerImage: '',
+  cardBackdropImage: '',
   category: '',
   group: '',
   visibility: 'public',
@@ -415,7 +416,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
     setOpenEditor(true);
   };
 
-  const uploadDraftImage = async (file: File, target: 'image' | 'bannerImage') => {
+  const uploadDraftImage = async (file: File, target: 'image' | 'bannerImage' | 'cardBackdropImage') => {
     if (!file) return;
     if (file.size <= 0) {
       setMessage('Selected image is empty.');
@@ -456,9 +457,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
     }
   };
 
-  const clearDraftImageField = (target: 'image' | 'bannerImage') => {
+  const clearDraftImageField = (target: 'image' | 'bannerImage' | 'cardBackdropImage') => {
     setDraft((prev) => ({ ...prev, [target]: '' }));
-    setMessage(`${target === 'image' ? 'Card image' : 'Banner image'} removed.`);
+    const labels: Record<'image' | 'bannerImage' | 'cardBackdropImage', string> = {
+      image: 'Card image',
+      bannerImage: 'Banner image',
+      cardBackdropImage: 'Card backdrop',
+    };
+    setMessage(`${labels[target]} removed.`);
   };
 
   const clearTierImage = (tierIndex: number) => {
@@ -1858,7 +1864,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
 
               <div className="xl:col-span-8 rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.015))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07)]">
                 <div className="mb-1 text-sm font-black tracking-wide text-white">3. Media & Content</div>
-                <div className="mb-3 text-xs text-yellow-200/70">Card/banner images plus product highlights and long description.</div>
+                <div className="mb-3 text-xs text-yellow-200/70">Card image, dedicated card backdrop, banner image, plus highlights and long description.</div>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div>
                     <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-yellow-200/70">Card Image URL</label>
@@ -1890,7 +1896,36 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
                     </div>
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-yellow-200/70">Banner / Card Background URL (optional)</label>
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-yellow-200/70">Card Backdrop URL (optional)</label>
+                    <div className="space-y-2">
+                      <input value={draft.cardBackdropImage || ''} onChange={(e) => setDraft({ ...draft, cardBackdropImage: e.target.value })} className={fieldClass} placeholder="https://... or upload below" />
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <label className={`${uploadButtonClass} flex cursor-pointer items-center justify-center`}>
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) void uploadDraftImage(file, 'cardBackdropImage');
+                              e.currentTarget.value = '';
+                            }}
+                          />
+                          {uploadingField === 'cardBackdropImage' ? 'Uploading...' : 'Upload Backdrop'}
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => clearDraftImageField('cardBackdropImage')}
+                          disabled={!String(draft.cardBackdropImage || '').trim()}
+                          className={removeButtonClass}
+                        >
+                          Remove Backdrop
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-yellow-200/70">Banner URL (optional)</label>
                     <div className="space-y-2">
                       <input value={draft.bannerImage || ''} onChange={(e) => setDraft({ ...draft, bannerImage: e.target.value })} className={fieldClass} placeholder="https://... or upload below" />
                       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">

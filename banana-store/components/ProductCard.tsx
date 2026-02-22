@@ -43,7 +43,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onView, theme
   const badgeIcon = (product.cardBadgeIcon || 'grid').toLowerCase();
   const badgeLabel = (product.cardBadgeLabel || (product.type === ServiceType.BUNDLE ? 'BUNDLE' : 'ACCOUNT')).trim();
   const fallbackImage = React.useMemo(() => buildInlineFallback(product.name), [product.name]);
-  const cardBackground = String(product.bannerImage || '').trim();
+  const cardBackground = String(product.cardBackdropImage || '').trim();
   const imageCandidates = React.useMemo(() => {
     const items = [
       // Product cards should use product image only (never tier images).
@@ -99,19 +99,19 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onView, theme
     <button
       type="button"
       onClick={() => onView(product)}
-      className="relative flex h-full w-full flex-col overflow-hidden rounded-3xl border border-white/5 bg-[#0a0a0a]/80 text-left backdrop-blur-md transition-all duration-500 card-glow group md:flex-row"
+      className="relative isolate flex h-full w-full flex-col overflow-hidden rounded-3xl border border-white/5 bg-[#0a0a0a]/80 text-left backdrop-blur-md transition-all duration-500 card-glow group md:flex-row"
     >
       {cardBackground && (
-        <div className="pointer-events-none absolute inset-0">
+        <div className="pointer-events-none absolute inset-0 z-0">
           <img
             src={cardBackground}
             alt=""
             aria-hidden="true"
             loading="lazy"
             decoding="async"
-            className="h-full w-full object-cover opacity-[0.16] saturate-125 contrast-105"
+            className="h-full w-full object-cover opacity-[0.1] brightness-[0.64] saturate-110 contrast-105"
           />
-          <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(0,0,0,0.86)_0%,rgba(0,0,0,0.72)_44%,rgba(0,0,0,0.9)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(5,5,5,0.93)_0%,rgba(6,6,6,0.9)_44%,rgba(5,5,5,0.95)_100%)]" />
         </div>
       )}
 
@@ -124,7 +124,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onView, theme
 
       {/* Visual Header - 16:9 */}
       <div
-        className="relative flex aspect-square w-full items-center justify-center overflow-hidden border-b border-white/5 md:aspect-square md:w-[42%] md:border-b-0 md:border-r"
+        className="relative z-10 flex aspect-square w-full items-center justify-center overflow-hidden border-b border-white/5 md:aspect-square md:w-[42%] md:border-b-0 md:border-r"
         style={getHeaderGradientStyle(product.type)}
       >
         {/* Top-Left Category Badge */}
@@ -159,7 +159,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onView, theme
       </div>
 
       {/* Details Section */}
-      <div className="flex flex-1 flex-col p-4 sm:p-6">
+      <div className="relative z-10 flex flex-1 flex-col p-4 sm:p-6">
         <div className="mb-4 flex flex-col items-start gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="w-full min-w-0 flex-1">
             <h3 className="mb-1 truncate text-xl font-black leading-tight tracking-tight text-white transition-colors group-hover:text-[#facc15]">{product.name}</h3>

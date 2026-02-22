@@ -669,14 +669,17 @@ export default function App() {
         <div
           className="absolute inset-0"
           style={{
-            opacity: 0.96,
+            opacity: 0.98,
             background: `
-              linear-gradient(180deg, #020202 0%, #050505 58%, #020202 100%),
-              radial-gradient(95% 75% at -10% -5%, rgba(250, 204, 21, ${0.08 + storeThemeRatio * 0.1}) 0%, rgba(250, 204, 21, 0.02) 38%, transparent 72%),
-              radial-gradient(90% 72% at 108% 108%, rgba(250, 204, 21, ${0.07 + storeThemeRatio * 0.08}) 0%, rgba(250, 204, 21, 0.02) 40%, transparent 74%)
+              linear-gradient(180deg, #020202 0%, #050505 56%, #020202 100%),
+              radial-gradient(95% 78% at -12% -8%, rgba(250, 204, 21, ${0.1 + storeThemeRatio * 0.12}) 0%, rgba(250, 204, 21, 0.03) 42%, transparent 74%),
+              radial-gradient(90% 76% at 110% 112%, rgba(250, 204, 21, ${0.09 + storeThemeRatio * 0.1}) 0%, rgba(250, 204, 21, 0.03) 40%, transparent 74%)
             `,
           }}
         />
+        <div className="aurora-layer aurora-layer-a" style={{ opacity: 0.32 + storeThemeRatio * 0.26 }} />
+        <div className="aurora-layer aurora-layer-b" style={{ opacity: 0.28 + storeThemeRatio * 0.24 }} />
+        <div className="aurora-layer aurora-layer-haze" style={{ opacity: 0.22 + storeThemeRatio * 0.18 }} />
       </div>
       {vaultTransition && (
         <div className={`fixed inset-0 z-[130] flex items-center justify-center px-5 transition-opacity duration-500 ${vaultTransition.phase === 'routing' ? 'opacity-0' : 'opacity-100'}`}>

@@ -4770,8 +4770,16 @@ class WebsiteBridgeServer:
             or product.get("cover_image")
             or ""
         ).strip()
+        card_backdrop_value = str(
+            product.get("cardBackdropImage")
+            or product.get("card_backdrop_image")
+            or product.get("backdropImage")
+            or product.get("backdrop_image")
+            or ""
+        ).strip()
         image_value = self._normalize_asset_url(image_value)
         banner_image_value = self._normalize_asset_url(banner_image_value)
+        card_backdrop_value = self._normalize_asset_url(card_backdrop_value)
         duration_value = str(product.get("duration", "1 Month")).strip() or "1 Month"
         duration_seconds = self._to_int(product.get("durationSeconds"), default=None)
         if duration_seconds is None:
@@ -4794,6 +4802,7 @@ class WebsiteBridgeServer:
             "detailedDescription": [str(line) for line in detailed],
             "image": image_value,
             "bannerImage": banner_image_value,
+            "cardBackdropImage": card_backdrop_value,
             "category": str(product.get("category", "")).strip(),
             "group": str(product.get("group", "")).strip(),
             "visibility": str(product.get("visibility", "public")).strip() or "public",
