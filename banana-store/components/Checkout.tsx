@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { X, ShieldCheck, Zap, CreditCard, Wallet, Bitcoin, CheckCircle2, ArrowRight, Shield } from 'lucide-react';
+import { X, ShieldCheck, CreditCard, Wallet, Bitcoin, CheckCircle2, Shield } from 'lucide-react';
 import { CartItem, Product } from '../types';
 import type { Order, User } from '../services/storageService';
 import { ShopApiService } from '../services/shopApiService';
@@ -14,12 +14,17 @@ interface CheckoutProps {
   onSuccess: (updatedProducts?: Product[]) => void;
 }
 
+const SUCCESS_ANIMATION_MS = 2500;
+const SUCCESS_ANIMATION_EXIT_MS = 350;
+
 export const Checkout: React.FC<CheckoutProps> = ({ isOpen, onClose, items, currentUser, settings, onSuccess }) => {
   const [step, setStep] = useState<'details' | 'payment' | 'processing' | 'success'>('details');
   const [processingPhase, setProcessingPhase] = useState('Verifying Transaction...');
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'crypto' | 'paypal'>('card');
   const [error, setError] = useState('');
   const [updatedProducts, setUpdatedProducts] = useState<Product[] | undefined>(undefined);
+  const [successPhase, setSuccessPhase] = useState<'launch' | 'routing'>('launch');
+  const [successProgressArmed, setSuccessProgressArmed] = useState(false);
   const [methodAvailability, setMethodAvailability] = useState<{
     card: { enabled: boolean; automated: boolean };
     paypal: { enabled: boolean; automated: boolean };
@@ -47,6 +52,25 @@ export const Checkout: React.FC<CheckoutProps> = ({ isOpen, onClose, items, curr
         });
       });
   }, [isOpen]);
+
+  useEffect(() => {
+    if (step !== 'success') return;
+    setSuccessPhase('launch');
+    setSuccessProgressArmed(false);
+
+    const armTimer = window.setTimeout(() => setSuccessProgressArmed(true), 40);
+    const phaseTimer = window.setTimeout(() => setSuccessPhase('routing'), SUCCESS_ANIMATION_MS);
+    const closeTimer = window.setTimeout(() => {
+      onSuccess(updatedProducts);
+      onClose();
+    }, SUCCESS_ANIMATION_MS + SUCCESS_ANIMATION_EXIT_MS);
+
+    return () => {
+      window.clearTimeout(armTimer);
+      window.clearTimeout(phaseTimer);
+      window.clearTimeout(closeTimer);
+    };
+  }, [step, updatedProducts, onSuccess, onClose]);
 
   const handleCheckout = () => {
     if (!currentUser) return;
@@ -277,15 +301,36 @@ export const Checkout: React.FC<CheckoutProps> = ({ isOpen, onClose, items, curr
         )}
 
         {step === 'success' && (
-          <div className="p-10 text-center animate-in zoom-in-95 duration-700 sm:p-16 md:p-24">
-            <div className="w-28 h-28 bg-[#22c55e] rounded-[40px] mx-auto flex items-center justify-center mb-12 rotate-12 shadow-[0_0_60px_rgba(34,197,94,0.4)] border-4 border-black/20">
-              <CheckCircle2 className="w-14 h-14 text-black" strokeWidth={4} />
+          <div className={`relative overflow-hidden p-10 text-center transition-opacity duration-500 sm:p-16 md:p-24 ${successPhase === 'routing' ? 'opacity-0' : 'opacity-100'}`}>
+            <div className="pointer-events-none absolute inset-0">
+              <div className="absolute -left-14 top-1/2 h-44 w-44 -translate-y-1/2 rounded-full bg-emerald-400/15 blur-3xl animate-pulse" />
+              <div className="absolute -right-12 top-10 h-52 w-52 rounded-full bg-yellow-400/10 blur-3xl animate-pulse [animation-delay:260ms]" />
             </div>
-            <h2 className="mb-4 text-4xl font-black uppercase tracking-tighter italic text-white sm:text-5xl md:text-6xl">Clearance <span className="text-[#22c55e]">Granted</span></h2>
-            <p className="text-[11px] font-black text-white/20 uppercase tracking-[0.4em] mb-16">Credentials generated and assigned to vault</p>
-            <button onClick={() => { onSuccess(updatedProducts); onClose(); }} className="mx-auto flex items-center gap-4 rounded-3xl bg-white px-8 py-4 text-xs font-black uppercase tracking-[0.22em] text-black transition-all hover:bg-gray-200 active:scale-95 sm:px-14 sm:py-6 sm:tracking-[0.3em]">
-              Access Decrypted Vault <ArrowRight className="w-5 h-5" />
-            </button>
+            <div className="relative mx-auto mb-10 flex h-28 w-28 items-center justify-center rounded-full border border-emerald-300/45 bg-emerald-400/10 shadow-[0_0_60px_rgba(52,211,153,0.28)]">
+              <div className="absolute inset-0 rounded-full border border-emerald-300/35 animate-ping" />
+              <div className="absolute inset-2 rounded-full border border-emerald-300/25 animate-pulse" />
+              <CheckCircle2 className="h-14 w-14 text-emerald-300" strokeWidth={3.2} />
+            </div>
+            <h2 className="relative mb-4 text-4xl font-black uppercase tracking-tighter italic text-white sm:text-5xl md:text-6xl">
+              Vault <span className="text-emerald-300">Unlocked</span>
+            </h2>
+            <p className="relative text-[11px] font-black uppercase tracking-[0.38em] text-white/35">
+              Routing Your Credentials
+            </p>
+            <div className="relative mx-auto mt-9 max-w-md rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">
+                Purchase confirmed. Securely forwarding to Member Vault.
+              </p>
+            </div>
+            <div className="relative mx-auto mt-7 h-2 w-full max-w-md overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-emerald-300 via-emerald-400 to-yellow-300 transition-[width] ease-linear"
+                style={{ width: successProgressArmed ? '100%' : '0%', transitionDuration: `${SUCCESS_ANIMATION_MS}ms` }}
+              />
+            </div>
+            <p className="relative mt-3 text-xs font-black uppercase tracking-[0.24em] text-emerald-100/75">
+              {successPhase === 'routing' ? 'Opening Member Vault' : 'Syncing Vault Session'}
+            </p>
           </div>
         )}
       </div>

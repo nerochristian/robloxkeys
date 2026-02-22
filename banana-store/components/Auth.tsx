@@ -86,8 +86,8 @@ export const Auth: React.FC<AuthProps> = ({ onAuthComplete, onBack }) => {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-[#050505] px-3 sm:px-4">
-      <div className="pointer-events-none absolute left-1/2 top-1/2 h-[460px] w-[460px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-yellow-500/5 blur-[120px] sm:h-[600px] sm:w-[600px]"></div>
+    <div className="page-motion relative flex min-h-screen items-center justify-center bg-[#050505] px-3 sm:px-4">
+      <div className="ambient-orb pointer-events-none absolute left-1/2 top-1/2 h-[460px] w-[460px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-yellow-500/5 blur-[120px] sm:h-[600px] sm:w-[600px]"></div>
 
       <button
         onClick={onBack}
@@ -96,7 +96,7 @@ export const Auth: React.FC<AuthProps> = ({ onAuthComplete, onBack }) => {
         <ArrowLeft className="h-4 w-4" /> Back to Store
       </button>
 
-      <div className="relative z-10 w-full max-w-md overflow-hidden rounded-[32px] border border-white/5 bg-[#0a0a0a] p-6 shadow-2xl sm:rounded-[48px] sm:p-12">
+      <div className="relative z-10 w-full max-w-md overflow-hidden rounded-[32px] border border-white/5 bg-[#0a0a0a] p-6 shadow-2xl animate-reveal sm:rounded-[48px] sm:p-12">
         <div className="absolute right-0 top-0 p-8 opacity-10">
           <ShieldCheck className="h-24 w-24 text-[#facc15]" />
         </div>

@@ -358,7 +358,7 @@ class WebsiteBridgeServer:
             return True
         token = request.headers.get("cf-turnstile-response", "").strip()
         if not token:
-            return True
+            return False
         ip = self._get_client_ip(request)
         try:
             async with ClientSession() as session:
@@ -372,10 +372,13 @@ class WebsiteBridgeServer:
                     timeout=ClientTimeout(total=5),
                 ) as resp:
                     result = await resp.json(content_type=None)
-                    return bool(result.get("success"))
+                    success = bool(result.get("success"))
+                    if not success:
+                        logger.warning(f"Turnstile rejected request from {ip}: {result}")
+                    return success
         except Exception as exc:
             logger.warning(f"Turnstile verification failed for {ip}: {exc}")
-            return True
+            return False
     @web.middleware
     async def _cors_middleware(self, request: web.Request, handler):
         response = await handler(request)
@@ -1020,6 +1023,8 @@ class WebsiteBridgeServer:
         return web.json_response({"ok": False, "message": "user not found"}, status=404)
 
     async def shop_auth_register(self, request: web.Request):
+        if not await self._verify_turnstile(request):
+            return web.json_response({"ok": False, "message": "bot verification failed"}, status=403)
         payload = await self._safe_json(request)
         if payload is None:
             return web.json_response({"ok": False, "message": "invalid json body"}, status=400)
@@ -2275,6 +2280,8 @@ class WebsiteBridgeServer:
         return web.json_response({"ok": True, "orderId": order_record["id"], "order": order_record, "products": public_products})
 
     async def shop_create_payment(self, request: web.Request):
+        if not await self._verify_turnstile(request):
+            return web.json_response({"ok": False, "message": "bot verification failed"}, status=403)
         auth_user = self._shop_user_from_request(request)
         if not isinstance(auth_user, dict):
             return web.json_response({"ok": False, "message": "unauthorized"}, status=401)
@@ -2610,6 +2617,8 @@ class WebsiteBridgeServer:
         return web.json_response({"ok": True, "checkoutUrl": checkout_url, "token": pending_token, "sessionId": session_id})
 
     async def shop_confirm_payment(self, request: web.Request):
+        if not await self._verify_turnstile(request):
+            return web.json_response({"ok": False, "message": "bot verification failed"}, status=403)
         auth_user = self._shop_user_from_request(request)
         if not isinstance(auth_user, dict):
             return web.json_response({"ok": False, "message": "unauthorized"}, status=401)

@@ -43,6 +43,24 @@ const normalizePath = (pathname: string): string => {
 
 const SESSION_KEY = 'robloxkeys.session';
 const STORE_THEME_KEY = 'robloxkeys.store_theme_blend';
+type CheckoutPaymentMethod = 'card' | 'crypto' | 'paypal';
+type VaultTransitionState = {
+  paymentMethod: CheckoutPaymentMethod;
+  credentialLines: string[];
+  phase: 'launch' | 'routing';
+};
+type PendingAuthIntent = {
+  returnPath: string;
+  returnSearch: string;
+  openCheckout: boolean;
+};
+const PAYMENT_METHOD_NAMES: Record<CheckoutPaymentMethod, string> = {
+  card: 'Card',
+  crypto: 'Crypto',
+  paypal: 'PayPal',
+};
+const VAULT_TRANSITION_MS = 2600;
+const VAULT_TRANSITION_EXIT_MS = 450;
 
 const readSession = (): User | null => {
   try {
@@ -119,6 +137,9 @@ export default function App() {
   const [tierPanelProduct, setTierPanelProduct] = useState<Product | null>(null);
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
   const [storeThemeBlend, setStoreThemeBlend] = useState<number>(62);
+  const [vaultTransition, setVaultTransition] = useState<VaultTransitionState | null>(null);
+  const [vaultProgressArmed, setVaultProgressArmed] = useState(false);
+  const [pendingAuthIntent, setPendingAuthIntent] = useState<PendingAuthIntent | null>(null);
   const [adminSettings, setAdminSettings] = useState<AdminSettings>({
     storeName: BRAND_CONFIG.identity.storeName,
     logoUrl: BRAND_CONFIG.assets.logoUrl,
@@ -172,6 +193,39 @@ export default function App() {
     applyRoute(normalized, catalog, session, search);
   };
 
+  const playVaultTransition = async (paymentMethod: CheckoutPaymentMethod, credentialLines: string[]) => {
+    setVaultProgressArmed(false);
+    setVaultTransition({
+      paymentMethod,
+      credentialLines: credentialLines.slice(0, 2),
+      phase: 'launch',
+    });
+    await new Promise((resolve) => window.setTimeout(resolve, 60));
+    setVaultProgressArmed(true);
+    await new Promise((resolve) => window.setTimeout(resolve, VAULT_TRANSITION_MS));
+    setVaultTransition((current) => (current ? { ...current, phase: 'routing' } : current));
+    window.history.replaceState({}, document.title, '/vault');
+    setSelectedProduct(null);
+    setSelectedTierId(null);
+    setView('dashboard');
+    await new Promise((resolve) => window.setTimeout(resolve, VAULT_TRANSITION_EXIT_MS));
+    setVaultTransition(null);
+    setVaultProgressArmed(false);
+  };
+
+  const requestCheckoutAuth = () => {
+    const returnPath = normalizePath(window.location.pathname);
+    const returnSearch = window.location.search || '';
+    setPendingAuthIntent({
+      returnPath,
+      returnSearch,
+      openCheckout: true,
+    });
+    setIsCartOpen(false);
+    setIsCheckoutOpen(false);
+    pushRoute('/auth', products, user);
+  };
+
   // Initialize and Load Data
   useEffect(() => {
     const localProducts: Product[] = [];
@@ -216,7 +270,7 @@ export default function App() {
     const handlePaymentReturn = async () => {
       const params = new URLSearchParams(window.location.search);
       const checkoutStatus = params.get('checkout');
-      const paymentMethod = params.get('payment_method');
+      const paymentMethodParam = params.get('payment_method');
       const token = params.get('token');
       const sessionId = params.get('session_id');
       const trackId = params.get('track_id') || params.get('trackId') || '';
@@ -235,15 +289,16 @@ export default function App() {
         return;
       }
 
-      if (checkoutStatus !== 'success' || !paymentMethod || !token) {
+      if (checkoutStatus !== 'success' || !paymentMethodParam || !token) {
         clearQuery();
         return;
       }
 
-      if (paymentMethod !== 'card' && paymentMethod !== 'crypto' && paymentMethod !== 'paypal') {
+      if (paymentMethodParam !== 'card' && paymentMethodParam !== 'crypto' && paymentMethodParam !== 'paypal') {
         clearQuery();
         return;
       }
+      const paymentMethod: CheckoutPaymentMethod = paymentMethodParam;
 
       const finalizeConfirmedOrder = async (confirmation: { ok: boolean; order?: Order; products?: Product[] }) => {
         if (!confirmation.ok || !confirmation.order) {
@@ -255,8 +310,6 @@ export default function App() {
         }
 
         setCart([]);
-        window.history.replaceState({}, document.title, '/vault');
-        setView('dashboard');
         const credentialLines = Object.entries(confirmation.order.credentials || {})
           .map(([lineId, credential]) => {
             const itemName =
@@ -264,10 +317,7 @@ export default function App() {
             return `${itemName}: ${credential}`;
           })
           .filter((line) => line.trim().length > 0);
-        const deliveryMessage = credentialLines.length > 0
-          ? `Payment confirmed.\n\nDelivered credentials:\n${credentialLines.join('\n\n')}`
-          : 'Payment confirmed. Open Account > Member Vault to view delivered credentials.';
-        alert(deliveryMessage);
+        await playVaultTransition(paymentMethod, credentialLines);
       };
 
       try {
@@ -441,7 +491,7 @@ export default function App() {
 
     setCart([item]);
     if (!user) {
-      setView('auth');
+      requestCheckoutAuth();
     } else {
       setIsCheckoutOpen(true);
     }
@@ -480,6 +530,14 @@ export default function App() {
   const handleAuthComplete = (newUser: User) => {
     writeSession(newUser);
     setUser(newUser);
+    if (pendingAuthIntent?.openCheckout && cart.length > 0) {
+      const { returnPath, returnSearch } = pendingAuthIntent;
+      setPendingAuthIntent(null);
+      pushRoute(returnPath || '/', products, newUser, returnSearch || '');
+      window.setTimeout(() => setIsCheckoutOpen(true), 80);
+      return;
+    }
+    setPendingAuthIntent(null);
     if (cart.length > 0) {
       setIsCheckoutOpen(true);
       pushRoute('/', products, newUser);
@@ -492,6 +550,7 @@ export default function App() {
     ShopApiService.clearSessionToken();
     writeSession(null);
     setUser(null);
+    setPendingAuthIntent(null);
     pushRoute('/', products, null);
     setCart([]);
   };
@@ -519,30 +578,45 @@ export default function App() {
 
   // Authentication Required View
   if (view === 'auth') {
-    return <Auth onAuthComplete={handleAuthComplete} onBack={() => pushRoute('/', products, user)} />;
+    return (
+      <Auth
+        onAuthComplete={handleAuthComplete}
+        onBack={() => {
+          if (pendingAuthIntent) {
+            const { returnPath, returnSearch } = pendingAuthIntent;
+            setPendingAuthIntent(null);
+            pushRoute(returnPath || '/', products, user, returnSearch || '');
+            return;
+          }
+          pushRoute('/', products, user);
+        }}
+      />
+    );
   }
 
   // Admin View
   if (view === 'admin' && user?.role === 'admin') {
     return (
-      <AdminPanel
-        products={products}
-        setProducts={(newProducts) => {
-          if (typeof newProducts === 'function') {
-            setProducts((prev) => (newProducts as (prev: Product[]) => Product[])(prev));
-            return;
-          }
-          setProducts(newProducts);
-        }}
-        settings={adminSettings}
-        setSettings={setAdminSettings}
-        onLogout={handleLogout}
-      />
+      <div className="page-motion">
+        <AdminPanel
+          products={products}
+          setProducts={(newProducts) => {
+            if (typeof newProducts === 'function') {
+              setProducts((prev) => (newProducts as (prev: Product[]) => Product[])(prev));
+              return;
+            }
+            setProducts(newProducts);
+          }}
+          settings={adminSettings}
+          setSettings={setAdminSettings}
+          onLogout={handleLogout}
+        />
+      </div>
     );
   }
 
   return (
-    <div className="min-h-screen relative z-10 transition-opacity duration-500">
+    <div className="app-shell min-h-screen relative z-10 transition-opacity duration-500">
       <div
         className="pointer-events-none fixed inset-0 z-0 transition-opacity duration-700"
         style={{
@@ -554,6 +628,52 @@ export default function App() {
           `,
         }}
       />
+      {vaultTransition && (
+        <div className={`fixed inset-0 z-[130] flex items-center justify-center px-5 transition-opacity duration-500 ${vaultTransition.phase === 'routing' ? 'opacity-0' : 'opacity-100'}`}>
+          <div className="absolute inset-0 bg-black/90 backdrop-blur-md" />
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <div className="absolute -left-20 top-1/2 h-60 w-60 -translate-y-1/2 rounded-full bg-yellow-300/20 blur-3xl animate-pulse" />
+            <div className="absolute -right-12 top-1/4 h-72 w-72 rounded-full bg-yellow-400/15 blur-3xl animate-pulse [animation-delay:220ms]" />
+          </div>
+          <div className="relative w-full max-w-md overflow-hidden rounded-[30px] border border-yellow-300/30 bg-[#090909]/95 p-7 text-white shadow-[0_0_65px_rgba(250,204,21,0.25)]">
+            <div className="mb-5 flex justify-center">
+              <div className="relative flex h-20 w-20 items-center justify-center rounded-full border border-yellow-300/50 bg-yellow-400/15">
+                <div className="absolute inset-0 rounded-full border border-yellow-300/35 animate-ping" />
+                <span className="text-4xl font-black text-yellow-200">✓</span>
+              </div>
+            </div>
+            <p className="text-center text-[11px] font-black uppercase tracking-[0.34em] text-yellow-100/75">
+              Payment Confirmed
+            </p>
+            <h3 className="mt-3 text-center text-3xl font-black tracking-tight text-yellow-100">
+              Vault Access Ready
+            </h3>
+            <p className="mt-3 text-center text-sm font-semibold text-white/70">
+              {PAYMENT_METHOD_NAMES[vaultTransition.paymentMethod]} payment secured. Launching your member vault now.
+            </p>
+            {vaultTransition.credentialLines.length > 0 ? (
+              <div className="mt-5 space-y-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                {vaultTransition.credentialLines.map((line) => (
+                  <p key={line} className="truncate text-xs font-semibold text-white/70">{line}</p>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-center text-xs font-semibold text-white/65">
+                Credentials were delivered and stored in your vault account.
+              </p>
+            )}
+            <div className="mt-6 h-2 overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-yellow-300 via-yellow-400 to-yellow-500 transition-[width] ease-linear"
+                style={{ width: vaultProgressArmed ? '100%' : '0%', transitionDuration: `${VAULT_TRANSITION_MS}ms` }}
+              />
+            </div>
+            <p className="mt-3 text-center text-xs font-black uppercase tracking-[0.24em] text-yellow-100/75">
+              {vaultTransition.phase === 'routing' ? 'Entering Member Vault' : 'Preparing Secure Redirect'}
+            </p>
+          </div>
+        </div>
+      )}
       <div className="relative z-10">
       <Navbar
         cartCount={cartCount}
@@ -566,6 +686,7 @@ export default function App() {
           if (user) {
             pushRoute(user.role === 'admin' ? '/admin' : '/vault', products, user);
           } else {
+            setPendingAuthIntent(null);
             pushRoute('/auth', products, user);
           }
         }}
@@ -573,7 +694,7 @@ export default function App() {
 
       <main className="transition-all duration-500 ease-in-out">
         {view === 'store' && (
-          <div className="animate-reveal">
+          <div className="animate-reveal page-motion">
             {apiOnline === false && (
               <div className="mx-auto mt-28 mb-4 max-w-7xl px-6">
                 <div className="rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-4 py-3 text-xs font-bold uppercase tracking-wider text-yellow-200">
@@ -586,7 +707,7 @@ export default function App() {
           </div>
         )}
         {view === 'product-detail' && selectedProduct && (
-          <div className="animate-reveal">
+          <div className="animate-reveal page-motion">
             <ProductDetail
               product={selectedProduct}
               selectedTier={(selectedProduct.tiers || []).find((tier) => tier.id === selectedTierId) || null}
@@ -597,7 +718,7 @@ export default function App() {
           </div>
         )}
         {view === 'dashboard' && user && (
-          <div className="animate-reveal">
+          <div className="animate-reveal page-motion">
             <UserDashboard
               user={user}
               onLogout={handleLogout}
@@ -609,12 +730,12 @@ export default function App() {
           </div>
         )}
         {view === 'privacy' && (
-          <div className="animate-reveal">
+          <div className="animate-reveal page-motion">
             <PrivacyPolicyPage onBack={() => pushRoute('/', products, user)} />
           </div>
         )}
         {view === 'terms' && (
-          <div className="animate-reveal">
+          <div className="animate-reveal page-motion">
             <ServiceTermsPage onBack={() => pushRoute('/', products, user)} />
           </div>
         )}
@@ -633,8 +754,7 @@ export default function App() {
         onRemove={removeFromCart}
         onCheckout={() => {
           if (!user) {
-            setIsCartOpen(false);
-            setView('auth');
+            requestCheckoutAuth();
           } else {
             setIsCartOpen(false);
             setIsCheckoutOpen(true);

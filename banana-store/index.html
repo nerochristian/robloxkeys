@@ -303,7 +303,7 @@
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
         </svg>
       </div>
-      <div style="font-family:Inter,sans-serif;color:#f8fafc;font-size:18px;font-weight:600;letter-spacing:-.02em">
+      <div id="cf-status" style="font-family:Inter,sans-serif;color:#f8fafc;font-size:18px;font-weight:600;letter-spacing:-.02em">
         Verifying you're human...</div>
       <div style="width:200px;height:3px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden">
         <div id="cf-bar"
@@ -318,25 +318,41 @@
     (function () {
       var shield = document.getElementById('cf-shield');
       var bar = document.getElementById('cf-bar');
+      var status = document.getElementById('cf-status');
       var passed = false;
       var step = 0;
       var iv = setInterval(function () { if (step < 80) { step += Math.random() * 8; bar.style.width = Math.min(step, 80) + '%' } }, 400);
+      function fail(message) {
+        clearInterval(iv);
+        if (bar) bar.style.width = '100%';
+        if (status) {
+          status.textContent = message || 'Cloudflare verification failed. Refresh and try again.';
+          status.style.color = '#fca5a5';
+        }
+      }
       function pass() {
         if (passed) return; passed = true; clearInterval(iv);
         bar.style.width = '100%';
         try { sessionStorage.setItem('cf-turnstile-passed', '1') } catch (e) { }
         setTimeout(function () { shield.style.opacity = '0'; setTimeout(function () { shield.style.display = 'none' }, 500) }, 400);
       }
+      var host = (window.location && window.location.hostname ? window.location.hostname.toLowerCase() : '');
+      var isLocalHost = host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
       var siteKey = '';
       try {
-        var scripts = document.querySelectorAll('script[src*="turnstile"]');
         var metaEl = document.querySelector('meta[name="cf-turnstile-site-key"]');
         if (metaEl) siteKey = metaEl.getAttribute('content') || '';
       } catch (e) { }
       if (!siteKey) {
-        /* Check if VITE injects it later; fallback auto-pass after 2s */
         setTimeout(function () {
-          if (!window.__CF_TURNSTILE_SITE_KEY) { pass(); return; }
+          if (!window.__CF_TURNSTILE_SITE_KEY) {
+            if (isLocalHost) {
+              pass();
+              return;
+            }
+            fail('Cloudflare Turnstile site key missing.');
+            return;
+          }
           siteKey = window.__CF_TURNSTILE_SITE_KEY;
           renderWidget(siteKey);
         }, 800);
@@ -344,24 +360,31 @@
         renderWidget(siteKey);
       }
       function renderWidget(key) {
+        var attempts = 0;
         function tryRender() {
-          if (!window.turnstile) { setTimeout(tryRender, 200); return; }
+          attempts += 1;
+          if (!window.turnstile) {
+            if (attempts > 40) {
+              fail('Cloudflare Turnstile did not load.');
+              return;
+            }
+            setTimeout(tryRender, 200);
+            return;
+          }
           window.turnstile.render('#cf-turnstile-widget', {
             sitekey: key,
             callback: function (token) {
               try { sessionStorage.setItem('cf-turnstile-token', token) } catch (e) { }
               pass();
             },
-            'error-callback': function () { pass(); },
-            'expired-callback': function () { },
+            'error-callback': function () { fail('Cloudflare verification failed. Please refresh.'); },
+            'expired-callback': function () { fail('Cloudflare verification expired. Please refresh.'); },
             theme: 'dark',
             appearance: 'interaction-only'
           });
         }
         tryRender();
       }
-      /* Absolute fallback: if nothing works after 8s, let them through */
-      setTimeout(pass, 8000);
     })();
   </script>
 

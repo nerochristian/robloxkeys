@@ -609,7 +609,7 @@ export const ShopApiService = {
   async authRegister(email: string, password: string): Promise<User> {
     const response = await withTimeout(resolvePath('/auth/register'), {
       method: 'POST',
-      headers: buildHeaders(),
+      headers: await buildSecureHeaders(),
       body: JSON.stringify({ email, password }),
     });
     const payload = await response.json().catch(() => ({})) as { ok?: boolean; message?: string; user?: User; sessionToken?: string };
@@ -757,7 +757,7 @@ export const ShopApiService = {
   async createPayment(order: Order, paymentMethod: string, successUrl: string, cancelUrl: string): Promise<{ ok: boolean; checkoutUrl?: string; token?: string; sessionId?: string; trackId?: string; paypalOrderId?: string; manual?: boolean }> {
     const response = await withTimeout(resolvePath('/payments/create'), {
       method: 'POST',
-      headers: buildHeaders(),
+      headers: await buildSecureHeaders(),
       body: JSON.stringify({ order, paymentMethod, successUrl, cancelUrl }),
     });
     if (!response.ok) {
@@ -776,7 +776,7 @@ export const ShopApiService = {
   async confirmPayment(token: string, sessionId: string, paymentMethod: string = 'card', paypalOrderId: string = ''): Promise<{ ok: boolean; order?: Order; products?: Product[] }> {
     const response = await withTimeout(resolvePath('/payments/confirm'), {
       method: 'POST',
-      headers: buildHeaders(),
+      headers: await buildSecureHeaders(),
       body: JSON.stringify({
         token,
         sessionId: paymentMethod === 'card' ? sessionId : '',
