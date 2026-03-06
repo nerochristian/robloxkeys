@@ -28,7 +28,7 @@ export const Hero: React.FC = () => {
 
         <h1 className="mt-6 text-4xl font-black tracking-tight text-white sm:text-6xl md:text-7xl">
           <span className="block">Executor & Script</span>
-          <span className="hero-spotlight-text block">Roblox</span>
+          <span className="hero-spotlight-text block">Roblox Keys</span>
         </h1>
 
         <p className="mx-auto mt-5 max-w-2xl text-sm font-semibold leading-relaxed text-white/70 sm:text-base md:text-xl">
@@ -41,7 +41,7 @@ export const Hero: React.FC = () => {
             className="hero-cta-glow inline-flex min-w-[210px] items-center justify-center gap-2 rounded-2xl border border-[#facc15]/50 bg-[#facc15] px-6 py-3 text-sm font-black text-black transition-all hover:-translate-y-0.5 hover:bg-[#eab308]"
           >
             <ShoppingBag className="h-4 w-4" />
-            Lihat Produk
+            View Products
           </a>
           <a
             href={supportHref}
