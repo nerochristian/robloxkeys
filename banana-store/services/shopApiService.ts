@@ -442,6 +442,34 @@ export const ShopApiService = {
     }>;
   },
 
+  async getCommunityStats(): Promise<{
+    ok: boolean;
+    guildId?: string;
+    guildName?: string;
+    memberCount: number;
+    onlineCount: number;
+  }> {
+    const response = await withTimeout(resolvePath('/community-stats'), {
+      method: 'GET',
+      headers: buildHeaders(),
+    });
+    if (!response.ok) throw new Error(`Community stats request failed (${response.status})`);
+    const payload = await response.json() as {
+      ok?: boolean;
+      guildId?: string;
+      guildName?: string;
+      memberCount?: number;
+      onlineCount?: number;
+    };
+    return {
+      ok: Boolean(payload.ok),
+      guildId: payload.guildId,
+      guildName: payload.guildName,
+      memberCount: Math.max(0, Number(payload.memberCount || 0) || 0),
+      onlineCount: Math.max(0, Number(payload.onlineCount || 0) || 0),
+    };
+  },
+
   async getProducts(): Promise<Product[]> {
     const response = await withTimeout(resolvePath('/products'), {
       method: 'GET',

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { BadgeCheck, Check, ChevronDown, MessageCircle, ShieldCheck, TriangleAlert, X } from 'lucide-react';
 import { BRAND_CONFIG } from '../config/brandConfig';
+import { ShopApiService } from '../services/shopApiService';
 
 const TYPEWRITER_WORDS = ['Community', 'Discord', 'Support Server'];
 
@@ -82,6 +83,10 @@ export const Features: React.FC = () => {
   const [wordIndex, setWordIndex] = useState(0);
   const [typedWord, setTypedWord] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [communityStats, setCommunityStats] = useState<{ memberCount: number; onlineCount: number }>({
+    memberCount: 0,
+    onlineCount: 0,
+  });
   const comparisonReveal = useScrollReveal<HTMLDivElement>(0.1);
   const faqReveal = useScrollReveal<HTMLDivElement>(0.12);
   const communityReveal = useScrollReveal<HTMLDivElement>(0.12);
@@ -90,6 +95,34 @@ export const Features: React.FC = () => {
     `transform-gpu transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${
       isVisible ? 'translate-y-0 opacity-100' : 'translate-y-12 opacity-0'
     }`;
+
+  useEffect(() => {
+    let disposed = false;
+
+    const refreshCommunityStats = async () => {
+      try {
+        const stats = await ShopApiService.getCommunityStats();
+        if (disposed) return;
+        const memberCount = Math.max(0, Math.round(Number(stats.memberCount || 0)));
+        const onlineCount = Math.max(0, Math.round(Number(stats.onlineCount || 0)));
+        if (memberCount > 0 || onlineCount > 0) {
+          setCommunityStats({ memberCount, onlineCount });
+        }
+      } catch {
+        // Keep the design fallback value when the API is unavailable.
+      }
+    };
+
+    void refreshCommunityStats();
+    const intervalId = window.setInterval(() => {
+      void refreshCommunityStats();
+    }, 60000);
+
+    return () => {
+      disposed = true;
+      window.clearInterval(intervalId);
+    };
+  }, []);
 
   useEffect(() => {
     const currentWord = TYPEWRITER_WORDS[wordIndex] || TYPEWRITER_WORDS[0];
@@ -120,8 +153,17 @@ export const Features: React.FC = () => {
     return () => window.clearTimeout(timer);
   }, [isDeleting, typedWord, wordIndex]);
 
+  const formattedMemberCount = communityStats.memberCount > 0 ? communityStats.memberCount.toLocaleString() : '0';
+  const formattedOnlineCount = communityStats.onlineCount > 0 ? communityStats.onlineCount.toLocaleString() : '0';
+  const displayedOnlineCount = communityStats.onlineCount > 0
+    ? communityStats.onlineCount
+    : (communityStats.memberCount > 0 ? communityStats.memberCount : 0);
+  const onlineRatio = communityStats.memberCount > 0
+    ? `${Math.round((communityStats.onlineCount / communityStats.memberCount) * 100)}%`
+    : '--';
+
   return (
-    <section id="features" className="relative overflow-hidden px-4 pb-24 pt-8 sm:px-6 sm:pb-32 sm:pt-10">
+    <section id="features" className="template-features relative overflow-hidden px-4 pb-24 pt-8 sm:px-6 sm:pb-32 sm:pt-10">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute left-1/2 top-[-9rem] h-[26rem] w-[26rem] -translate-x-1/2 rounded-full bg-yellow-400/10 blur-[120px]" />
         <div className="absolute -left-24 bottom-16 h-64 w-64 rounded-full bg-yellow-300/10 blur-[95px]" />
@@ -130,16 +172,18 @@ export const Features: React.FC = () => {
 
       <div className="relative mx-auto max-w-7xl space-y-12">
         <section ref={comparisonReveal.ref} className={revealClass(comparisonReveal.visible)}>
-          <div className="mx-auto max-w-4xl text-center">
+          <div className="template-section-title mx-auto max-w-4xl text-center">
             <h3 className="text-4xl font-black tracking-tight text-white sm:text-6xl">
               Tired of Compromising on <span className="text-[#facc15]">Quality?</span>
             </h3>
+          </div>
+          <div className="template-section-subtitle">
             <p className="mx-auto mt-4 max-w-3xl text-sm font-semibold leading-relaxed text-white/60 sm:text-lg">
               Smart buyers choose stable products, instant access, and faster real support.
             </p>
           </div>
 
-          <div className="relative mt-8 overflow-hidden rounded-[34px] border border-yellow-400/20 bg-[linear-gradient(145deg,rgba(23,17,5,0.94),rgba(7,6,3,0.95))] lg:grid lg:grid-cols-2">
+          <div className="template-panel template-panel--comparison relative mt-8 overflow-hidden rounded-[34px] border border-yellow-400/20 bg-[linear-gradient(145deg,rgba(23,17,5,0.94),rgba(7,6,3,0.95))] lg:grid lg:grid-cols-2">
             <div className="border-b border-yellow-400/20 p-6 sm:p-8 lg:border-b-0 lg:border-r lg:pr-10">
               <h4 className="text-3xl font-black text-white">{BRAND_CONFIG.identity.storeName}</h4>
               <p className="text-sm font-semibold text-yellow-100/80">Premium choice and trusted support</p>
@@ -205,10 +249,12 @@ export const Features: React.FC = () => {
         </section>
 
         <section ref={faqReveal.ref} className={revealClass(faqReveal.visible)}>
-          <div className="mx-auto max-w-4xl text-center">
+          <div className="template-section-title mx-auto max-w-4xl text-center">
             <h2 className="text-4xl font-black tracking-tight text-white sm:text-6xl">
               Quick <span className="text-[#facc15]">Answers</span>
             </h2>
+          </div>
+          <div className="template-section-subtitle">
             <p className="mx-auto mt-4 max-w-2xl text-sm font-semibold text-white/60 sm:text-lg">
               Everything you need to know, right at your fingertips.
             </p>
@@ -220,7 +266,7 @@ export const Features: React.FC = () => {
               return (
                 <article
                   key={item.question}
-                  className={`overflow-hidden rounded-2xl border border-yellow-400/20 bg-[linear-gradient(90deg,rgba(33,23,4,0.86),rgba(12,10,4,0.92))] shadow-[0_8px_30px_rgba(250,204,21,0.08)] transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+                  className={`template-faq-item overflow-hidden rounded-2xl border border-yellow-400/20 bg-[linear-gradient(90deg,rgba(33,23,4,0.86),rgba(12,10,4,0.92))] shadow-[0_8px_30px_rgba(250,204,21,0.08)] transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
                     faqReveal.visible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
                   }`}
                   style={{ transitionDelay: `${90 + index * 80}ms` }}
@@ -253,7 +299,7 @@ export const Features: React.FC = () => {
 
         <section
           ref={communityReveal.ref}
-          className={`${revealClass(communityReveal.visible)} relative overflow-hidden rounded-[32px] border border-yellow-400/20 bg-[linear-gradient(140deg,rgba(27,19,5,0.95),rgba(10,8,4,0.95))] p-6 shadow-[0_16px_60px_rgba(250,204,21,0.12)] sm:p-8 lg:p-10`}
+          className={`${revealClass(communityReveal.visible)} template-panel template-panel--community relative overflow-hidden rounded-[32px] border border-yellow-400/20 bg-[linear-gradient(140deg,rgba(27,19,5,0.95),rgba(10,8,4,0.95))] p-6 shadow-[0_16px_60px_rgba(250,204,21,0.12)] sm:p-8 lg:p-10`}
         >
           <div className="pointer-events-none absolute inset-0">
             <div className="absolute -bottom-12 left-1/3 h-44 w-44 rounded-full bg-yellow-300/10 blur-3xl" />
@@ -336,7 +382,7 @@ export const Features: React.FC = () => {
 
                 <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-emerald-300/35 bg-emerald-400/10 px-3 py-1.5 text-sm font-semibold text-emerald-100">
                   <span className="h-2 w-2 rounded-full bg-emerald-300" />
-                  5978 members online
+                  {displayedOnlineCount.toLocaleString()} members online
                 </div>
 
                 <div className="mt-4 flex items-center gap-2">
@@ -346,18 +392,18 @@ export const Features: React.FC = () => {
                   <span className="rounded-full bg-white/10 px-2.5 py-1 text-[22px] leading-none font-black text-white/90">+32</span>
                 </div>
 
-                <div className="mt-5 grid grid-cols-3 gap-3">
+                <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div className="rounded-2xl border border-white/10 bg-black/25 p-3 sm:p-3.5">
-                    <p className="text-3xl leading-none font-black text-white sm:text-[44px]">12548</p>
+                    <p className="text-2xl leading-none font-black tabular-nums tracking-tight text-white sm:text-3xl lg:text-[34px]">{formattedMemberCount}</p>
                     <p className="mt-2 text-xs font-semibold text-white/45">Total members</p>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-black/25 p-3 sm:p-3.5">
-                    <p className="text-3xl leading-none font-black text-white sm:text-[44px]">23567</p>
-                    <p className="mt-2 text-xs font-semibold text-white/45">Tickets solved</p>
+                    <p className="text-2xl leading-none font-black tabular-nums tracking-tight text-white sm:text-3xl lg:text-[34px]">{formattedOnlineCount}</p>
+                    <p className="mt-2 text-xs font-semibold text-white/45">Members online</p>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-black/25 p-3 sm:p-3.5">
-                    <p className="text-3xl leading-none font-black text-white sm:text-[44px]">1.3</p>
-                    <p className="mt-2 text-xs font-semibold text-white/45">Avg. response (min)</p>
+                    <p className="text-2xl leading-none font-black tabular-nums tracking-tight text-white sm:text-3xl lg:text-[34px]">{onlineRatio}</p>
+                    <p className="mt-2 text-xs font-semibold text-white/45">Online ratio</p>
                   </div>
                 </div>
               </div>

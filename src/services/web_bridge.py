@@ -234,6 +234,7 @@ class WebsiteBridgeServer:
         self._cache_ttl = {
             "products": 15.0,
             "health": 30.0,
+            "community_stats": 20.0,
             "payment_methods": 60.0,
         }
 
@@ -256,6 +257,7 @@ class WebsiteBridgeServer:
         self.app.router.add_post("/api/bot/chat", self.chat)
         self.app.router.add_post("/api/bot/order", self.order)
         self.app.router.add_get("/shop/health", self.shop_health)
+        self.app.router.add_get("/shop/community-stats", self.shop_community_stats)
         self.app.router.add_post("/shop/chat", self.chat)
         self.app.router.add_get("/shop/products", self.shop_products)
         self.app.router.add_get("/shop/products/{product_id}", self.shop_get_product)
@@ -457,6 +459,7 @@ class WebsiteBridgeServer:
             or path.startswith("/shop/products/")
             or path.startswith("/shop/media/")
             or path == "/shop/payment-methods"
+            or path == "/shop/community-stats"
         ):
             return True
         if request.method == "POST" and path == "/shop/licenses/validate":
@@ -779,6 +782,80 @@ class WebsiteBridgeServer:
                 "branding": branding,
         }
         self._set_cache("health", result)
+        return web.json_response(result)
+
+    def _resolve_primary_shop_guild(self) -> Optional[discord.Guild]:
+        if self.discord_join_guild_id and self.discord_join_guild_id.isdigit():
+            configured = self.bot.get_guild(int(self.discord_join_guild_id))
+            if configured is not None:
+                return configured
+        if self.bot.guilds:
+            return self.bot.guilds[0]
+        return None
+
+    async def shop_community_stats(self, request: web.Request):
+        cached = self._get_cache("community_stats")
+        if cached is not None:
+            return web.json_response(cached)
+
+        guild = self._resolve_primary_shop_guild()
+        result = {
+            "ok": True,
+            "guildId": "",
+            "guildName": "",
+            "memberCount": 0,
+            "onlineCount": 0,
+        }
+        if guild is None:
+            self._set_cache("community_stats", result)
+            return web.json_response(result)
+
+        result["guildId"] = str(guild.id)
+        result["guildName"] = str(getattr(guild, "name", "") or "")
+
+        gateway_member_count = int(getattr(guild, "member_count", 0) or 0)
+
+        live_member_count = 0
+        live_online_count = 0
+        try:
+            # Force member cache sync so status counting reflects current guild state.
+            if not bool(getattr(guild, "chunked", False)):
+                await asyncio.wait_for(guild.chunk(cache=True), timeout=12.0)
+        except Exception as exc:
+            logger.warning(f"Failed to chunk guild members for {guild.id}: {exc}")
+
+        try:
+            offline_statuses = {discord.Status.offline, discord.Status.invisible}
+            members_snapshot = list(getattr(guild, "members", []) or [])
+            live_member_count = len(members_snapshot)
+            for member in members_snapshot:
+                status = getattr(member, "status", discord.Status.offline)
+                if status not in offline_statuses:
+                    live_online_count += 1
+        except Exception:
+            live_member_count = 0
+            live_online_count = 0
+
+        fetched_member_count = 0
+        fetched_online_count = 0
+        try:
+            fetched_guild = await self.bot.fetch_guild(guild.id, with_counts=True)
+            fetched_member_count = int(getattr(fetched_guild, "approximate_member_count", 0) or 0)
+            fetched_online_count = int(getattr(fetched_guild, "approximate_presence_count", 0) or 0)
+        except Exception as exc:
+            logger.warning(f"Failed to fetch guild counts for {guild.id}: {exc}")
+
+        member_count = max(gateway_member_count, live_member_count, fetched_member_count)
+        online_count = max(live_online_count, fetched_online_count)
+
+        if member_count <= 0 and online_count > 0:
+            member_count = online_count
+        if member_count > 0 and online_count > member_count:
+            online_count = member_count
+
+        result["memberCount"] = member_count
+        result["onlineCount"] = online_count
+        self._set_cache("community_stats", result)
         return web.json_response(result)
 
     async def shop_products(self, request: web.Request):

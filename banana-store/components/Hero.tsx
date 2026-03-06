@@ -1,15 +1,26 @@
 import React from 'react';
-import { ArrowRight, ShoppingBag, Sparkles } from 'lucide-react';
+import { ArrowRight, ShieldCheck, ShoppingBag, Sparkles, Star, Zap } from 'lucide-react';
 import { BRAND_CONFIG } from '../config/brandConfig';
 
 export const Hero: React.FC = () => {
   const supportHref = String(BRAND_CONFIG.links.support || '#').trim() || '#';
   const externalSupport = /^https?:\/\//i.test(supportHref);
+  const starfield = React.useMemo(
+    () =>
+      Array.from({ length: 22 }, (_, index) => ({
+        id: `star-${index}`,
+        left: `${Math.random() * 100}%`,
+        top: `${Math.random() * 100}%`,
+        delay: `${(Math.random() * 3).toFixed(2)}s`,
+        duration: `${(3 + Math.random() * 2.7).toFixed(2)}s`,
+      })),
+    []
+  );
 
   return (
-    <section className="relative overflow-hidden pt-32 pb-12 animate-reveal sm:pt-44 sm:pb-16 md:pt-52 md:pb-20">
+    <section className="template-hero">
       {BRAND_CONFIG.assets.bannerUrl && (
-        <div className="absolute inset-0 opacity-20 pointer-events-none">
+        <div className="template-hero__banner absolute inset-0 pointer-events-none">
           <img
             src={BRAND_CONFIG.assets.bannerUrl}
             alt={`${BRAND_CONFIG.identity.storeName} banner`}
@@ -17,43 +28,86 @@ export const Hero: React.FC = () => {
           />
         </div>
       )}
-      <div className="pointer-events-none absolute inset-x-0 top-16 z-0 h-[360px]">
-        <div className="hero-top-glow mx-auto h-full w-[min(860px,96vw)] rounded-full" />
+      <div className="template-hero__bg-overlay" />
+      <div className="template-hero__bottom-gradient" />
+      <div className="template-hero__starfield" aria-hidden="true">
+        {starfield.map((star) => (
+          <span
+            key={star.id}
+            className="template-hero__star"
+            style={{
+              left: star.left,
+              top: star.top,
+              animationDelay: star.delay,
+              animationDuration: star.duration,
+            }}
+          />
+        ))}
       </div>
-      <div className="relative z-10 mx-auto max-w-5xl px-4 text-center">
-        <div className="inline-flex items-center gap-2 rounded-full border border-[#facc15]/35 bg-[#facc15]/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-yellow-100/90 backdrop-blur-sm sm:text-[11px]">
-          <Sparkles className="h-3.5 w-3.5 text-[#facc15]" />
-          Digital Product Store
+      <div className="template-hero__blob template-hero__blob--one" />
+      <div className="template-hero__blob template-hero__blob--two" />
+      <div className="template-hero__blob template-hero__blob--three" />
+
+      <div className="template-hero__container">
+        <div className="template-hero__badge">
+          <Sparkles className="h-3.5 w-3.5" />
+          <span>Premium Digital Products</span>
         </div>
 
-        <h1 className="mt-6 text-4xl font-black tracking-tight text-white sm:text-6xl md:text-7xl">
-          <span className="block">Executors &amp; Scripts</span>
-          <span className="hero-spotlight-text block">Roblox Keys</span>
+        <h1 className="template-hero__title">
+          <span className="template-hero__title-line">Experience Quality with</span>
+          <span className="template-hero__title-accent">{BRAND_CONFIG.identity.storeName}</span>
         </h1>
 
-        <p className="mx-auto mt-5 max-w-2xl text-sm font-semibold leading-relaxed text-white/70 sm:text-base md:text-xl">
+        <p className="template-hero__subtitle">
           {BRAND_CONFIG.copy.heroTagline}
         </p>
 
-        <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:mt-10 sm:flex-row">
+        <div className="template-hero__tags" aria-label="Store strengths">
+          <span className="template-hero__tag">
+            <Star className="h-3.5 w-3.5" />
+            High Quality
+          </span>
+          <span className="template-hero__tag">
+            <Zap className="h-3.5 w-3.5" />
+            Instant Delivery
+          </span>
+          <span className="template-hero__tag">
+            <ShieldCheck className="h-3.5 w-3.5" />
+            Verified Products
+          </span>
+          <span className="template-hero__tag">
+            <Sparkles className="h-3.5 w-3.5" />
+            24/7 Support
+          </span>
+        </div>
+
+        <div className="template-hero__ctas">
           <a
             href="#products"
-            className="hero-cta-glow inline-flex min-w-[210px] items-center justify-center gap-2 rounded-2xl border border-[#facc15]/50 bg-[#facc15] px-6 py-3 text-sm font-black text-black transition-all hover:-translate-y-0.5 hover:bg-[#eab308]"
+            className="template-hero__cta template-hero__cta--secondary"
           >
             <ShoppingBag className="h-4 w-4" />
-            View Products
+            Browse Products
           </a>
           <a
             href={supportHref}
             target={externalSupport ? '_blank' : undefined}
             rel={externalSupport ? 'noreferrer noopener' : undefined}
-            className="inline-flex min-w-[210px] items-center justify-center gap-2 rounded-2xl border border-white/15 bg-[#101010]/70 px-6 py-3 text-sm font-black text-white transition-all hover:-translate-y-0.5 hover:border-[#facc15]/35 hover:bg-[#171717]"
+            className="template-hero__cta template-hero__cta--primary"
           >
             Join Discord
             <ArrowRight className="h-4 w-4" />
           </a>
         </div>
       </div>
+
+      <a href="#products" className="template-hero__scroll-indicator">
+        <span className="template-hero__scroll-mouse">
+          <span className="template-hero__scroll-dot" />
+        </span>
+        <span>Scroll</span>
+      </a>
     </section>
   );
 };
