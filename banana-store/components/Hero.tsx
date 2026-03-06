@@ -27,7 +27,7 @@ export const Hero: React.FC = () => {
         </div>
 
         <h1 className="mt-6 text-4xl font-black tracking-tight text-white sm:text-6xl md:text-7xl">
-          <span className="block">Executor & Script</span>
+          <span className="block">Executors &amp; Scripts</span>
           <span className="hero-spotlight-text block">Roblox Keys</span>
         </h1>
 
