@@ -114,7 +114,7 @@ async def init_db():
 
         parsed = parsed._replace(query=urlencode(query))
         db_url = urlunparse(parsed)
-                if os.getenv("DB_SSL_VERIFY", "true").lower() == "false":
+        if os.getenv("DB_SSL_VERIFY", "true").lower() == "false":
             db_url = db_url.replace("ssl=true", "ssl=false")
 
     await Tortoise.init(
