@@ -154,7 +154,7 @@ async def init_db():
             verify_ssl,
         )
 
-        ssl_arg = None
+        ssl_arg = False if not wants_ssl else None
         if wants_ssl:
             if verify_ssl:
                 ssl_arg = ssl.create_default_context()

@@ -72,6 +72,7 @@ const newProduct = (): Product => ({
   id: `prod-${Date.now()}`,
   name: '',
   description: '',
+  buyPageDescription: '',
   urlPath: '',
   price: 0,
   originalPrice: 0,
@@ -1864,7 +1865,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
 
               <div className="xl:col-span-8 rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.015))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07)]">
                 <div className="mb-1 text-sm font-black tracking-wide text-white">3. Media & Content</div>
-                <div className="mb-3 text-xs text-yellow-200/70">Card image, dedicated card backdrop, banner image, plus highlights and long description.</div>
+                <div className="mb-3 text-xs text-yellow-200/70">Card image, dedicated card backdrop, banner image, plus the buy-page narrative and highlight lists.</div>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div>
                     <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-yellow-200/70">Card Image URL</label>
@@ -1952,6 +1953,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
                         </button>
                       </div>
                     </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-yellow-200/70">Buy Page Description</label>
+                    <textarea
+                      rows={8}
+                      value={draft.buyPageDescription || ''}
+                      onChange={(e) => setDraft({ ...draft, buyPageDescription: e.target.value })}
+                      className={fieldClass}
+                      placeholder={"Shown on the product buy page.\n\nPaste plain text or formatted text blocks here."}
+                    />
+                    <p className="mt-1 text-[11px] text-yellow-200/60">Optional. If empty, the buy page falls back to the short description.</p>
                   </div>
                   <div>
                     <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-yellow-200/70">Feature Bullets</label>

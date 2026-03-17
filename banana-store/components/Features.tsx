@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { BadgeCheck, Check, ChevronDown, MessageCircle, ShieldCheck, TriangleAlert, X } from 'lucide-react';
 import { BRAND_CONFIG } from '../config/brandConfig';
+import { ShopApiService } from '../services/shopApiService';
 
 const TYPEWRITER_WORDS = ['Community', 'Discord', 'Support Server'];
 
@@ -82,6 +83,7 @@ export const Features: React.FC = () => {
   const [wordIndex, setWordIndex] = useState(0);
   const [typedWord, setTypedWord] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [onlineMemberCount, setOnlineMemberCount] = useState(5978);
   const comparisonReveal = useScrollReveal<HTMLDivElement>(0.1);
   const faqReveal = useScrollReveal<HTMLDivElement>(0.12);
   const communityReveal = useScrollReveal<HTMLDivElement>(0.12);
@@ -90,6 +92,33 @@ export const Features: React.FC = () => {
     `transform-gpu transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${
       isVisible ? 'translate-y-0 opacity-100' : 'translate-y-12 opacity-0'
     }`;
+
+  useEffect(() => {
+    let disposed = false;
+
+    const refreshCommunityStats = async () => {
+      try {
+        const stats = await ShopApiService.getCommunityStats();
+        if (disposed) return;
+        const liveCount = stats.memberCount > 0 ? stats.memberCount : stats.onlineCount;
+        if (liveCount > 0) {
+          setOnlineMemberCount(Math.round(liveCount));
+        }
+      } catch {
+        // Keep the design fallback value when the API is unavailable.
+      }
+    };
+
+    void refreshCommunityStats();
+    const intervalId = window.setInterval(() => {
+      void refreshCommunityStats();
+    }, 60000);
+
+    return () => {
+      disposed = true;
+      window.clearInterval(intervalId);
+    };
+  }, []);
 
   useEffect(() => {
     const currentWord = TYPEWRITER_WORDS[wordIndex] || TYPEWRITER_WORDS[0];
@@ -336,7 +365,7 @@ export const Features: React.FC = () => {
 
                 <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-emerald-300/35 bg-emerald-400/10 px-3 py-1.5 text-sm font-semibold text-emerald-100">
                   <span className="h-2 w-2 rounded-full bg-emerald-300" />
-                  5978 members online
+                  {onlineMemberCount} members online
                 </div>
 
                 <div className="mt-4 flex items-center gap-2">

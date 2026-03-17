@@ -1,0 +1,61 @@
+name: robloxkeys
+region: nyc
+features:
+  - buildpack-stack=ubuntu-22
+ingress:
+  rules:
+    - component:
+        name: api
+      match:
+        path:
+          prefix: /shop
+    - component:
+        name: api
+      match:
+        path:
+          prefix: /api/bot
+    - component:
+        name: storefront
+      match:
+        path:
+          prefix: /
+services:
+  - name: api
+    environment_slug: python
+    source_dir: .
+    github:
+      repo: your-user/your-repo
+      branch: main
+      deploy_on_push: true
+    build_command: pip install -r requirements.txt
+    run_command: python main.py
+    http_port: 8080
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    health_check:
+      http_path: /shop/health
+    envs:
+      - key: PYTHONUNBUFFERED
+        scope: RUN_TIME
+        value: "1"
+      - key: FRONTEND_ORIGIN
+        scope: RUN_TIME
+        value: https://your-app.ondigitalocean.app
+      - key: FRONTEND_ORIGINS
+        scope: RUN_TIME
+        value: https://your-app.ondigitalocean.app,http://localhost:3000,http://127.0.0.1:3000
+      - key: DISCORD_OAUTH_REDIRECT_URI
+        scope: RUN_TIME
+        value: https://your-app.ondigitalocean.app/shop/auth/discord/callback
+static_sites:
+  - name: storefront
+    environment_slug: node-js
+    source_dir: banana-store
+    github:
+      repo: your-user/your-repo
+      branch: main
+      deploy_on_push: true
+    build_command: npm ci && npm run build
+    output_dir: dist
+    index_document: index.html
+    error_document: index.html

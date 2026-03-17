@@ -22,6 +22,7 @@ export interface Product {
   id: string;
   name: string;
   description: string;
+  buyPageDescription?: string;
   urlPath?: string;
   price: number;
   originalPrice: number;

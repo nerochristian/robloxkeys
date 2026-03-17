@@ -13,7 +13,7 @@ export default defineConfig({
     allowedHosts: [
       'robloxkeys.store',
       'www.robloxkeys.store',
-      '.up.railway.app',
+      '.ondigitalocean.app',
     ],
   },
   plugins: [react()],

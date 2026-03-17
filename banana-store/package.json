@@ -7,8 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "preview:railway": "vite preview --host 0.0.0.0 --port ${PORT:-8080}",
-    "start": "npm run preview:railway"
+    "preview:hosted": "vite preview --host 0.0.0.0 --port ${PORT:-8080}",
+    "start": "npm run preview:hosted"
   },
   "dependencies": {
     "lucide-react": "^0.564.0",

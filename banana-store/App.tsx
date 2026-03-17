@@ -569,12 +569,12 @@ export default function App() {
   };
 
   const handleViewProduct = (product: Product) => {
-    if (hasTiers(product)) {
-      setTierPanelProduct(product);
-      return;
-    }
-    setSelectedTierId(null);
-    pushRoute(`/${productSlug(product)}`, products, user);
+    const firstTier =
+      (product.tiers || []).find((tier) => Number(tier.stock || 0) > 0) ||
+      (product.tiers || [])[0] ||
+      null;
+    const search = firstTier ? `?tier=${encodeURIComponent(firstTier.id)}` : '';
+    pushRoute(`/${productSlug(product)}`, products, user, search);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -812,6 +812,7 @@ export default function App() {
               onBack={() => pushRoute('/', products, user)}
               onAddToCart={addToCart}
               onBuyNow={handleBuyNow}
+              onSelectTier={handleSelectTier}
             />
           </div>
         )}

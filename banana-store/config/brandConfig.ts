@@ -5,17 +5,9 @@ type RuntimeBranding = {
   faviconUrl?: string;
 };
 
-const DEFAULT_PUBLIC_STORE_API_URL = "https://robloxkeys-production.up.railway.app";
-
 const resolveStoreApiBaseUrl = (): string => {
   const configured = ((import.meta.env.VITE_STORE_API_URL as string | undefined) || "").trim().replace(/\/$/, "");
   if (configured) return configured;
-  if (typeof window !== "undefined") {
-    const host = window.location.hostname.toLowerCase();
-    if (host === "robloxkeys.store" || host === "www.robloxkeys.store") {
-      return DEFAULT_PUBLIC_STORE_API_URL;
-    }
-  }
   return "";
 };
 

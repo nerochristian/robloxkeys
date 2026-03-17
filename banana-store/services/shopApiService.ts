@@ -15,17 +15,9 @@ import {
   User,
 } from './storageService';
 
-const DEFAULT_PUBLIC_STORE_API_URL = 'https://robloxkeys-production.up.railway.app';
-
 const resolveStoreApiBaseUrl = (): string => {
   const configured = ((import.meta.env.VITE_STORE_API_URL as string | undefined) || '').trim().replace(/\/$/, '');
   if (configured) return configured;
-  if (typeof window !== 'undefined') {
-    const host = window.location.hostname.toLowerCase();
-    if (host === 'robloxkeys.store' || host === 'www.robloxkeys.store') {
-      return DEFAULT_PUBLIC_STORE_API_URL;
-    }
-  }
   return '';
 };
 
@@ -234,9 +226,14 @@ const normalizeProduct = (p: ProductPayload): Product => {
     (p as Record<string, unknown>).backdropImage,
     (p as Record<string, unknown>).backdrop_image
   );
+  const buyPageDescription = pickFirstString(
+    (p as Record<string, unknown>).buyPageDescription,
+    (p as Record<string, unknown>).buy_page_description
+  );
 
   return {
     ...p,
+    buyPageDescription,
     originalPrice: typeof p.originalPrice === 'number' ? p.originalPrice : Number(p.original_price || 0),
     durationSeconds: Math.max(0, Number(p.durationSeconds ?? p.duration_seconds ?? 0) || 0),
     features,
@@ -440,6 +437,34 @@ export const ShopApiService = {
         faviconUrl?: string;
       };
     }>;
+  },
+
+  async getCommunityStats(): Promise<{
+    ok: boolean;
+    guildId?: string;
+    guildName?: string;
+    memberCount: number;
+    onlineCount: number;
+  }> {
+    const response = await withTimeout(resolvePath('/community-stats'), {
+      method: 'GET',
+      headers: buildHeaders(),
+    });
+    if (!response.ok) throw new Error(`Community stats request failed (${response.status})`);
+    const payload = await response.json() as {
+      ok?: boolean;
+      guildId?: string;
+      guildName?: string;
+      memberCount?: number;
+      onlineCount?: number;
+    };
+    return {
+      ok: Boolean(payload.ok),
+      guildId: payload.guildId,
+      guildName: payload.guildName,
+      memberCount: Math.max(0, Number(payload.memberCount || 0) || 0),
+      onlineCount: Math.max(0, Number(payload.onlineCount || 0) || 0),
+    };
   },
 
   async getProducts(): Promise<Product[]> {

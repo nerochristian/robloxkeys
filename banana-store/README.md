@@ -18,16 +18,15 @@ View your app in AI Studio: https://ai.studio/apps/drive/1emqIOmXJvQi3EmEj8PsZld
 2. Set `VITE_GEMINI_API_KEY` in root `.env` (`../.env`) only if you want browser-side Gemini fallback
 3. Update branding in `config/brandConfig.ts` (store name, logo URL, banner URL, emojis, links, storage prefix)
 4. Configure bot bridge vars in root `.env` (`../.env`):
-   `VITE_BOT_API_URL` (set to your API public URL, e.g. `https://robloxkeys.up.railway.app`),
+   `VITE_BOT_API_URL` (set to your API public URL if frontend and backend are on different origins),
    `VITE_BOT_API_PREFIX` (default `/api/bot`),
    `VITE_BOT_API_KEY`,
    optional `VITE_BOT_API_KEY_HEADER`, `VITE_BOT_API_AUTH_SCHEME`, `VITE_BOT_API_TIMEOUT_MS`
 5. Configure shop API vars in root `.env` (`../.env`):
-   `VITE_STORE_API_URL` (set to your API public URL),
+   `VITE_STORE_API_URL` (set to your API public URL if frontend and backend are on different origins),
    `VITE_STORE_API_PREFIX` (default `/shop`),
    optional `VITE_STORE_API_KEY`, `VITE_STORE_API_TIMEOUT_MS`
-6. If you deploy frontend and backend as separate Railway services:
-   use Railway private domain (`robloxkeys` / `robloxkeys.railway.internal`) only for server-to-server traffic.
-   Browser `VITE_*` URLs must always use the backend public domain.
-7. Run the app:
+6. If you deploy frontend and backend on the same origin with path routing, leave `VITE_BOT_API_URL` and `VITE_STORE_API_URL` unset so the app uses relative paths.
+7. If you deploy frontend and backend on separate origins, browser `VITE_*` URLs must point to the backend public domain.
+8. Run the app:
    `npm run dev`

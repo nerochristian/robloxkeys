@@ -1,0 +1,86 @@
+.hero-text {
+  color: #ED11D6;
+}
+
+.section-title h2 {
+    margin-bottom: 0px;
+    position: relative;
+    z-index: 1;
+    display: inline-block;
+}
+
+.section-title h2 {
+    margin-bottom: 0px; /* Remove extra space below the title */
+}
+
+.section-subtitle p {
+    color: #ffffff;
+    font-size: 13px;
+    opacity: 0.8; /* 20% opacity */
+    margin-bottom: 10px !important; /* Move the subtitle closer to the title */
+}
+
+    .section-title h2 {
+      margin-bottom: 1rem;
+      font-weight: 700;
+      font-size: 2.5rem;
+      letter-spacing: -0.5px;
+      color: #ffffff;
+    }
+    
+    .section-subtitle p {
+      font-size: 1.1rem;
+      color: rgba(255, 255, 255, 0.8);
+      max-width: 700px;
+      margin: 0 auto 2rem;
+      text-align: center;
+    }
+
+.section-title,
+.section-subtitle {
+    text-align: center;  
+    width: 100%;        
+    display: flex;       
+    flex-direction: column;
+    align-items: center; 
+    justify-content: center; 
+    margin-bottom: 0.5rem !important;
+}
+
+html, body {
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+
+/* ==== Ajuste responsivo del header ==== */
+
+/* Escritorio (mantener alineado con el resto del sitio) */
+@media (min-width: 992px) {
+  .header-wrapper .nebula-navbar .container {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+  .header-wrapper .nebula-navbar .nav-brand {
+    margin-left: -45px !important;
+  }
+}
+
+/* Móviles: agregar aire visual a los lados */
+@media (max-width: 991px) {
+  /* Forzamos padding mayor para separar logo y menú del borde */
+  .header-wrapper .nebula-navbar .container {
+    padding-left: 20px !important;   /* puedes subir a 24px si quieres más espacio */
+    padding-right: 20px !important;
+  }
+
+  /* Aseguramos que el logo no quede desplazado */
+  .header-wrapper .nebula-navbar .nav-brand {
+    margin-left: 0 !important;
+  }
+
+  /* Separación del botón de menú (3 rayas) */
+  .header-wrapper .nebula-navbar .navbar-toggler {
+    margin-right: 10px !important;
+  }
+}
