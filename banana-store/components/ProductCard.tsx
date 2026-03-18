@@ -70,6 +70,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onView, theme
       [ServiceType.DISNEY]: [252, 211, 77],
       [ServiceType.CRUNCHYROLL]: [250, 204, 21],
       [ServiceType.BUNDLE]: [250, 204, 21],
+      [ServiceType.KEY]: [250, 204, 21],
+      [ServiceType.ACCOUNT]: [250, 204, 21],
+      [ServiceType.SERVICE]: [250, 204, 21],
       [ServiceType.OTHER]: [250, 204, 21],
     };
     const [r, g, b] = variantByType[type] || variantByType[ServiceType.OTHER];

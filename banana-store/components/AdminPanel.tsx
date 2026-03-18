@@ -1,4 +1,4 @@
-﻿
+
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Ban,
@@ -1599,6 +1599,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ products, setProducts, s
                     Remove Favicon
                   </button>
                 </div>
+              </div>
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold uppercase tracking-[0.12em] text-yellow-200/70">Product Usage Notice</label>
+                <textarea
+                  rows={4}
+                  value={settings.productUsageNotice ?? ''}
+                  onChange={(e) => setSettings({ ...settings, productUsageNotice: e.target.value })}
+                  className={fieldClass}
+                  placeholder={"Usage instructions shown on product pages.\nEach line is a separate paragraph.\nUse {service} to inject the product type."}
+                />
               </div>
               <input value={settings.currency} onChange={(e) => setSettings({ ...settings, currency: e.target.value })} className={fieldClass} placeholder="Currency" />
               <input value={settings.paypalEmail} onChange={(e) => setSettings({ ...settings, paypalEmail: e.target.value })} className={fieldClass} placeholder="PayPal email or paypal.me link" />

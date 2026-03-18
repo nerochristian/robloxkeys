@@ -3983,11 +3983,13 @@ class WebsiteBridgeServer:
         logo_url = self._normalize_asset_url(settings.get("logoUrl") or self.brand_logo_url or "")
         banner_url = self._normalize_asset_url(settings.get("bannerUrl") or self.brand_banner_url or "")
         favicon_url = self._normalize_asset_url(settings.get("faviconUrl") or logo_url or self.brand_favicon_url or "")
+        product_usage_notice = str(settings.get("productUsageNotice") or "")
         return {
             "storeName": store_name,
             "logoUrl": logo_url,
             "bannerUrl": banner_url,
             "faviconUrl": favicon_url,
+            "productUsageNotice": product_usage_notice,
         }
 
     async def _load_state(self, state_key: str) -> Any:

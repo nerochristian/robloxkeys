@@ -3,6 +3,9 @@ export enum ServiceType {
   DISNEY = 'DISNEY',
   CRUNCHYROLL = 'CRUNCHYROLL',
   BUNDLE = 'BUNDLE',
+  KEY = 'KEY',
+  ACCOUNT = 'ACCOUNT',
+  SERVICE = 'SERVICE',
   OTHER = 'OTHER'
 }
 
@@ -72,6 +75,7 @@ export interface AdminSettings {
   logoUrl?: string;
   bannerUrl?: string;
   faviconUrl?: string;
+  productUsageNotice?: string;
   currency: string;
   paypalEmail: string;
   stripeKey: string;

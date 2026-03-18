@@ -194,6 +194,7 @@ export default function App() {
     logoUrl: BRAND_CONFIG.assets.logoUrl,
     bannerUrl: BRAND_CONFIG.assets.bannerUrl,
     faviconUrl: BRAND_CONFIG.assets.faviconUrl,
+    productUsageNotice: BRAND_CONFIG.copy.productUsageNotice.join('\n'),
     currency: 'USD',
     paypalEmail: '',
     stripeKey: '',
@@ -305,6 +306,7 @@ export default function App() {
             logoUrl: healthLogoUrl,
             bannerUrl: String(health.branding.bannerUrl || '').trim(),
             faviconUrl: resolvePreferredFavicon({ logoUrl: healthLogoUrl, faviconUrl: healthFaviconUrl }),
+            productUsageNotice: health.branding.productUsageNotice,
           });
           applyDocumentFavicon(resolvePreferredFavicon({ logoUrl: healthLogoUrl, faviconUrl: healthFaviconUrl }));
         }

@@ -3,6 +3,7 @@ type RuntimeBranding = {
   logoUrl?: string;
   bannerUrl?: string;
   faviconUrl?: string;
+  productUsageNotice?: string;
 };
 
 const resolveStoreApiBaseUrl = (): string => {
@@ -116,6 +117,7 @@ export const applyRuntimeBranding = (branding: RuntimeBranding | null | undefine
   const logoUrl = normalizeBrandAssetUrl(branding.logoUrl);
   const bannerUrl = normalizeBrandAssetUrl(branding.bannerUrl);
   const faviconUrl = normalizeBrandAssetUrl(branding.faviconUrl);
+  const productUsageNotice = branding.productUsageNotice;
 
   if (storeName) {
     BRAND_CONFIG.identity.storeName = storeName;
@@ -127,6 +129,12 @@ export const applyRuntimeBranding = (branding: RuntimeBranding | null | undefine
   if (logoUrl) BRAND_CONFIG.assets.logoUrl = logoUrl;
   if (bannerUrl) BRAND_CONFIG.assets.bannerUrl = bannerUrl;
   if (faviconUrl) BRAND_CONFIG.assets.faviconUrl = faviconUrl;
+  if (typeof productUsageNotice === "string") {
+    BRAND_CONFIG.copy.productUsageNotice = productUsageNotice
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+  }
 };
 
 export const BRAND_INITIALS = BRAND_CONFIG.identity.shortName

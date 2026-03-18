@@ -70,5 +70,8 @@ export const SERVICE_COLORS = {
   [ServiceType.DISNEY]: 'yellow',
   [ServiceType.CRUNCHYROLL]: 'yellow',
   [ServiceType.BUNDLE]: 'yellow',
+  [ServiceType.KEY]: 'yellow',
+  [ServiceType.ACCOUNT]: 'yellow',
+  [ServiceType.SERVICE]: 'yellow',
   [ServiceType.OTHER]: 'yellow',
 };
