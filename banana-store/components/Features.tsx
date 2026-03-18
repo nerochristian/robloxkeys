@@ -83,7 +83,17 @@ export const Features: React.FC = () => {
   const [wordIndex, setWordIndex] = useState(0);
   const [typedWord, setTypedWord] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
-  const [onlineMemberCount, setOnlineMemberCount] = useState(5978);
+  const [communityStats, setCommunityStats] = useState<{
+    onlineCount: number;
+    memberCount: number;
+    ticketCount: number;
+    responseTimeMinutes: number | null;
+  }>({
+    onlineCount: 0,
+    memberCount: 0,
+    ticketCount: 0,
+    responseTimeMinutes: null,
+  });
   const comparisonReveal = useScrollReveal<HTMLDivElement>(0.1);
   const faqReveal = useScrollReveal<HTMLDivElement>(0.12);
   const communityReveal = useScrollReveal<HTMLDivElement>(0.12);
@@ -100,12 +110,15 @@ export const Features: React.FC = () => {
       try {
         const stats = await ShopApiService.getCommunityStats();
         if (disposed) return;
-        const liveCount = stats.memberCount > 0 ? stats.memberCount : stats.onlineCount;
-        if (liveCount > 0) {
-          setOnlineMemberCount(Math.round(liveCount));
-        }
+        setCommunityStats({
+          onlineCount: Math.max(0, Math.round(stats.onlineCount || 0)),
+          memberCount: Math.max(0, Math.round(stats.memberCount || 0)),
+          ticketCount: Math.max(0, Math.round(stats.ticketCount || 0)),
+          responseTimeMinutes:
+            stats.responseTimeMinutes == null ? null : Math.max(0, Number(stats.responseTimeMinutes || 0)),
+        });
       } catch {
-        // Keep the design fallback value when the API is unavailable.
+        // Keep the existing values when the API is unavailable.
       }
     };
 
@@ -148,6 +161,10 @@ export const Features: React.FC = () => {
 
     return () => window.clearTimeout(timer);
   }, [isDeleting, typedWord, wordIndex]);
+
+  const formatWholeNumber = (value: number): string => new Intl.NumberFormat('en-US').format(Math.max(0, Math.round(value)));
+  const formatResponseMinutes = (value: number | null): string =>
+    value == null ? 'N/A' : new Intl.NumberFormat('en-US', { maximumFractionDigits: 1, minimumFractionDigits: value % 1 === 0 ? 0 : 1 }).format(value);
 
   return (
     <section id="features" className="relative overflow-hidden px-4 pb-24 pt-8 sm:px-6 sm:pb-32 sm:pt-10">
@@ -365,7 +382,7 @@ export const Features: React.FC = () => {
 
                 <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-emerald-300/35 bg-emerald-400/10 px-3 py-1.5 text-sm font-semibold text-emerald-100">
                   <span className="h-2 w-2 rounded-full bg-emerald-300" />
-                  {onlineMemberCount} members online
+                  {formatWholeNumber(communityStats.onlineCount)} members online
                 </div>
 
                 <div className="mt-4 flex items-center gap-2">
@@ -377,15 +394,15 @@ export const Features: React.FC = () => {
 
                 <div className="mt-5 grid grid-cols-3 gap-3">
                   <div className="rounded-2xl border border-white/10 bg-black/25 p-3 sm:p-3.5">
-                    <p className="text-3xl leading-none font-black text-white sm:text-[44px]">12548</p>
+                    <p className="text-3xl leading-none font-black text-white sm:text-[44px]">{formatWholeNumber(communityStats.memberCount)}</p>
                     <p className="mt-2 text-xs font-semibold text-white/45">Total members</p>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-black/25 p-3 sm:p-3.5">
-                    <p className="text-3xl leading-none font-black text-white sm:text-[44px]">23567</p>
+                    <p className="text-3xl leading-none font-black text-white sm:text-[44px]">{formatWholeNumber(communityStats.ticketCount)}</p>
                     <p className="mt-2 text-xs font-semibold text-white/45">Tickets solved</p>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-black/25 p-3 sm:p-3.5">
-                    <p className="text-3xl leading-none font-black text-white sm:text-[44px]">1.3</p>
+                    <p className="text-3xl leading-none font-black text-white sm:text-[44px]">{formatResponseMinutes(communityStats.responseTimeMinutes)}</p>
                     <p className="mt-2 text-xs font-semibold text-white/45">Avg. response (min)</p>
                   </div>
                 </div>

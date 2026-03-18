@@ -40,13 +40,13 @@ services:
         value: "1"
       - key: FRONTEND_ORIGIN
         scope: RUN_TIME
-        value: https://your-app.ondigitalocean.app
+        value: https://robloxkeys.store
       - key: FRONTEND_ORIGINS
         scope: RUN_TIME
-        value: https://your-app.ondigitalocean.app,http://localhost:3000,http://127.0.0.1:3000
+        value: https://robloxkeys.store,https://www.robloxkeys.store,https://robloxkeys-px2za.ondigitalocean.app,http://localhost:3000,http://127.0.0.1:3000
       - key: DISCORD_OAUTH_REDIRECT_URI
         scope: RUN_TIME
-        value: https://your-app.ondigitalocean.app/shop/auth/discord/callback
+        value: https://robloxkeys.store/shop/auth/discord/callback
 static_sites:
   - name: storefront
     environment_slug: node-js
@@ -59,3 +59,10 @@ static_sites:
     output_dir: dist
     index_document: index.html
     error_document: index.html
+    envs:
+      - key: VITE_BOT_API_URL
+        scope: BUILD_TIME
+        value: https://robloxkeys.store
+      - key: VITE_STORE_API_URL
+        scope: BUILD_TIME
+        value: https://robloxkeys.store

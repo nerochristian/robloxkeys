@@ -445,6 +445,8 @@ export const ShopApiService = {
     guildName?: string;
     memberCount: number;
     onlineCount: number;
+    ticketCount: number;
+    responseTimeMinutes: number | null;
   }> {
     const response = await withTimeout(resolvePath('/community-stats'), {
       method: 'GET',
@@ -457,6 +459,8 @@ export const ShopApiService = {
       guildName?: string;
       memberCount?: number;
       onlineCount?: number;
+      ticketCount?: number;
+      responseTimeMinutes?: number | null;
     };
     return {
       ok: Boolean(payload.ok),
@@ -464,6 +468,11 @@ export const ShopApiService = {
       guildName: payload.guildName,
       memberCount: Math.max(0, Number(payload.memberCount || 0) || 0),
       onlineCount: Math.max(0, Number(payload.onlineCount || 0) || 0),
+      ticketCount: Math.max(0, Number(payload.ticketCount || 0) || 0),
+      responseTimeMinutes:
+        payload.responseTimeMinutes == null
+          ? null
+          : Math.max(0, Number(payload.responseTimeMinutes || 0) || 0),
     };
   },
 

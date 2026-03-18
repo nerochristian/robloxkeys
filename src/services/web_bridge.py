@@ -24,6 +24,7 @@ import discord
 from aiohttp import ClientSession, ClientTimeout, web
 
 from ..utils.logger import logger
+from .database import Ticket
 
 
 class WebsiteBridgeServer:
@@ -805,6 +806,8 @@ class WebsiteBridgeServer:
             "guildName": "",
             "memberCount": 0,
             "onlineCount": 0,
+            "ticketCount": 0,
+            "responseTimeMinutes": None,
         }
         if guild is None:
             self._set_cache("community_stats", result)
@@ -843,8 +846,15 @@ class WebsiteBridgeServer:
         if member_count > 0 and online_count > member_count:
             online_count = member_count
 
+        ticket_count = 0
+        try:
+            ticket_count = await Ticket.filter(guild_id=str(guild.id), status="CLOSED").count()
+        except Exception as exc:
+            logger.warning(f"Failed to load closed ticket count for {guild.id}: {exc}")
+
         result["memberCount"] = member_count
         result["onlineCount"] = online_count
+        result["ticketCount"] = int(ticket_count or 0)
         self._set_cache("community_stats", result)
         return web.json_response(result)
 
