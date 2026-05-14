@@ -97,6 +97,31 @@ img {
   animation: shellIn 500ms var(--motion-ease) both;
 }
 
+.express-gradient-shell {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #040300;
+}
+
+.express-gradient-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.98;
+  --gradient-color-1: #1e1600;
+  --gradient-color-2: #120c00;
+  --gradient-color-3: #ffd54a;
+  --gradient-color-4: #6f5200;
+}
+
+.express-gradient-vignette {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.12) 0%, rgba(0, 0, 0, 0.28) 100%);
+}
+
 .page-motion {
   animation: routeIn 620ms var(--motion-ease) both;
 }
@@ -253,15 +278,6 @@ img {
   }
 }
 
-.hero-top-glow {
-  background:
-    radial-gradient(55% 68% at 18% 30%, rgba(250, 204, 21, 0.32) 0%, rgba(250, 204, 21, 0.1) 40%, transparent 72%),
-    radial-gradient(58% 72% at 82% 26%, rgba(234, 179, 8, 0.26) 0%, rgba(250, 204, 21, 0.09) 38%, transparent 72%),
-    radial-gradient(40% 50% at 50% 78%, rgba(250, 204, 21, 0.2) 0%, rgba(250, 204, 21, 0.08) 35%, transparent 72%);
-  filter: blur(30px);
-  animation: heroGlowDrift 10s ease-in-out infinite;
-}
-
 .hero-spotlight-text {
   background-image: linear-gradient(112deg, #fef9c3 6%, #fde047 34%, #facc15 58%, #fff4a3 94%);
   background-size: 220% 100%;
@@ -276,30 +292,6 @@ img {
   animation: heroButtonGlow 3.4s ease-in-out infinite;
 }
 
-.store-wallpaper {
-  overflow: hidden;
-}
-
-.store-wallpaper-glow {
-  position: absolute;
-  inset: -8% -4%;
-  background:
-    radial-gradient(circle at top right, rgba(250, 204, 21, 0.16) 0%, transparent 46%),
-    radial-gradient(circle at bottom left, rgba(250, 204, 21, 0.1) 0%, transparent 38%);
-  animation: storeWallpaperGlow 16s ease-in-out infinite;
-}
-
-.store-wallpaper-grid {
-  position: absolute;
-  inset: -96px;
-  opacity: 0.35;
-  background-image: linear-gradient(rgba(250, 204, 21, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(250, 204, 21, 0.08) 1px, transparent 1px);
-  background-size: 48px 48px;
-  mask-image: radial-gradient(circle at 50% 32%, black 35%, transparent 92%);
-  -webkit-mask-image: radial-gradient(circle at 50% 32%, black 35%, transparent 92%);
-  animation: storeWallpaperGridPan 20s linear infinite;
-}
-
 /* Emergency performance mode: reduce GPU load on weaker or overheating systems. */
 .perf-safety .page-motion,
 .perf-safety .nav-entrance,
@@ -310,11 +302,9 @@ img {
 .perf-safety .footer-stagger,
 .perf-safety .ambient-orb,
 .perf-safety .aurora-layer,
-.perf-safety .hero-top-glow,
 .perf-safety .hero-spotlight-text,
 .perf-safety .hero-cta-glow,
-.perf-safety .store-wallpaper-glow,
-.perf-safety .store-wallpaper-grid {
+.perf-safety .express-gradient-canvas {
   animation: none !important;
 }
 

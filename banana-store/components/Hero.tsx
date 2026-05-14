@@ -17,9 +17,6 @@ export const Hero: React.FC = () => {
           />
         </div>
       )}
-      <div className="pointer-events-none absolute inset-x-0 top-16 z-0 h-[360px]">
-        <div className="hero-top-glow mx-auto h-full w-[min(860px,96vw)] rounded-full" />
-      </div>
       <div className="relative z-10 mx-auto max-w-5xl px-4 text-center">
         <div className="inline-flex items-center gap-2 rounded-full border border-[#facc15]/35 bg-[#facc15]/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-yellow-100/90 backdrop-blur-sm sm:text-[11px]">
           <Sparkles className="h-3.5 w-3.5 text-[#facc15]" />

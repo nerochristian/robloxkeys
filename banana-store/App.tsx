@@ -14,6 +14,7 @@ import { Auth } from './components/Auth';
 import { UserDashboard } from './components/UserDashboard';
 import { AdminPanel } from './components/AdminPanel';
 import { Checkout } from './components/Checkout';
+import { ExpressGradientBackground } from './components/ExpressGradientBackground';
 import { Product, CartItem, AdminSettings, ProductTier } from './types';
 import type { Order, User } from './services/storageService';
 import { applyRuntimeBranding, BRAND_CONFIG } from './config/brandConfig';
@@ -655,22 +656,9 @@ export default function App() {
 
   const renderSiteFrame = (content: React.ReactNode) => (
     <div className="app-shell relative z-10 min-h-screen min-h-[100svh] transition-opacity duration-500">
-      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden transition-opacity duration-700 aurora-mode-lite">
-        <div
-          className="absolute -inset-[12%]"
-          style={{
-            opacity: 0.98,
-            background: `
-              linear-gradient(180deg, #020202 0%, #050505 56%, #020202 100%),
-              radial-gradient(95% 78% at -12% -8%, rgba(250, 204, 21, ${0.1 + storeThemeRatio * 0.12}) 0%, rgba(250, 204, 21, 0.03) 42%, transparent 74%),
-              radial-gradient(90% 76% at 110% 112%, rgba(250, 204, 21, ${0.09 + storeThemeRatio * 0.1}) 0%, rgba(250, 204, 21, 0.03) 40%, transparent 74%)
-            `,
-          }}
-        />
-        <div className="aurora-layer aurora-layer-a" style={{ opacity: 0.32 + storeThemeRatio * 0.26 }} />
-        <div className="aurora-layer aurora-layer-b" style={{ opacity: 0.28 + storeThemeRatio * 0.24 }} />
-        <div className="aurora-layer aurora-layer-haze" style={{ opacity: 0.22 + storeThemeRatio * 0.18 }} />
-        <div className="absolute inset-x-0 -bottom-px h-40 bg-gradient-to-b from-transparent via-black/40 to-[#050505]" />
+      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden transition-opacity duration-700">
+        <ExpressGradientBackground />
+        <div className="absolute inset-0 bg-black/28" />
       </div>
       {vaultTransition && (
         <div className={`fixed inset-0 z-[130] flex items-center justify-center px-5 transition-opacity duration-500 ${vaultTransition.phase === 'routing' ? 'opacity-0' : 'opacity-100'}`}>
@@ -788,10 +776,6 @@ export default function App() {
       <main className="transition-all duration-500 ease-in-out">
         {view === 'store' && (
           <div className="animate-reveal page-motion relative overflow-hidden">
-            <div className="store-wallpaper pointer-events-none absolute inset-0 z-0">
-              <div className="store-wallpaper-glow" />
-              <div className="store-wallpaper-grid" />
-            </div>
             <div className="relative z-10">
               {apiOnline === false && (
                 <div className="mx-auto mt-28 mb-4 max-w-7xl px-6">
